@@ -129,6 +129,15 @@ final class WebRequestDriver implements CarriesOutWebRequests {
           '${signIn == null ? '' : ', which $signIn is not for'}',
         );
       }
+      // On its own site a hop stays under the grant; the path is checked
+      // without its query, which `covers` ignores and may hold a token.
+      if (request.grantedPathPrefix case final prefix?
+          when origin == request.origin) {
+        final path = WebPath.parse(next.path);
+        if (path == null || !prefix.covers(path)) {
+          return Refused('${request.origin} redirected out of $prefix');
+        }
+      }
       if (redirects.length == maxRedirects) {
         return Refused(
           '${request.origin} redirected more than $maxRedirects times',

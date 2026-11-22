@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0
+
+- **Breaking:** is_effects ^0.13.0.
+- A redirect that stays on the request's own site must stay under
+  `Request.grantedPathPrefix`, when it has one. A hop that leaves it, or
+  whose path `WebPath.parse` refuses (such as `%252e`, which a server could
+  decode twice into `..`), is refused and not followed. The refusal names
+  the site and the prefix, never the hop's path or query. A redirect to
+  another site still goes only where the sign-in is for.
+
 ## 0.7.0
 
 - The service checks its caller through is_unix_socket_user_check instead

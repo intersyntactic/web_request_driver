@@ -261,9 +261,14 @@ void main() {
       },
     );
 
-    Request get(String path, {BodyToKeep keep = BodyToKeep.text}) => Request(
+    Request get(
+      String path, {
+      BodyToKeep keep = BodyToKeep.text,
+      PathPrefix? granted,
+    }) => Request(
       api,
       path: WebPath.parse(path)!,
+      grantedPathPrefix: granted,
       signIn: bot,
       headers: {'accept': '*/*'},
       keep: keep,
@@ -412,6 +417,82 @@ void main() {
       site['GET https://api.example/e'] = answer(200, 'too far');
       final out = await reading().carryOutWebRequest(get('/a'));
       expect((out as Refused).why, contains('more than 3'));
+    });
+
+    group('a redirect on the request\'s own site stays under its grant', () {
+      final drive = PathPrefix.parse('/v1.0/drives/d/')!;
+      const content = '/v1.0/drives/d/items/i/content';
+
+      Future<Outcome<WebResponse>> granted() =>
+          reading().carryOutWebRequest(get(content, granted: drive));
+
+      void expectNeverCalled(String path) => expect(
+        calls.where((c) => c.url.host == 'api.example' && c.url.path == path),
+        isEmpty,
+      );
+
+      test('follows a hop within the grant, its query and all', () async {
+        site['GET https://api.example$content'] = redirect(
+          '/v1.0/drives/d/items/i/raw?sig=a@b..c',
+        );
+        site['GET https://api.example/v1.0/drives/d/items/i/raw?sig=a@b..c'] =
+            answer(200, 'the file');
+        final r = await ran(granted());
+        expect((r.body as TextBody).text, 'the file');
+      });
+
+      test(
+        'refuses a hop out of the grant, naming only site and prefix',
+        () async {
+          site['GET https://api.example$content'] = redirect(
+            '/v1.0/drives/other/x?tempauth=SECRET',
+          );
+          final out = await granted();
+          final why = (out as Refused).why;
+          expect(why, contains('https://api.example'));
+          expect(why, contains('/v1.0/drives/d/'));
+          expect(why, isNot(contains('SECRET')));
+          expect(why, isNot(contains('other')));
+          expect(log.join('\n'), isNot(contains('SECRET')));
+          expectNeverCalled('/v1.0/drives/other/x');
+        },
+      );
+
+      test('refuses escaped dot segments that resolve out of it', () async {
+        site['GET https://api.example$content'] = redirect(
+          '/v1.0/drives/d/%2e%2e/%2E%2E/other/x',
+        );
+        expect(await granted(), isA<Refused>());
+        expectNeverCalled('/v1.0/other/x');
+      });
+
+      test('refuses a path a server could decode twice', () async {
+        site['GET https://api.example$content'] = redirect(
+          '/v1.0/drives/d/%252e%252e/x',
+        );
+        expect(await granted(), isA<Refused>());
+        expectNeverCalled('/v1.0/drives/d/%252e%252e/x');
+      });
+
+      test('leaves a hop to another site to the sign-in', () async {
+        site['GET https://api.example$content'] = redirect(
+          'https://files.example/f?tempauth=SECRET',
+        );
+        site['GET https://files.example/f?tempauth=SECRET'] = answer(200, 'f');
+        final r = await ran(granted());
+        expect((r.body as TextBody).text, 'f');
+      });
+
+      test('holds on a hop back from another site', () async {
+        site['GET https://api.example$content'] = redirect(
+          'https://files.example/f',
+        );
+        site['GET https://files.example/f'] = redirect(
+          'https://api.example/v1.0/drives/other/x',
+        );
+        expect(await granted(), isA<Refused>());
+        expectNeverCalled('/v1.0/drives/other/x');
+      });
     });
 
     test('answers a redirect to anything but a GET', () async {
