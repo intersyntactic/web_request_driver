@@ -609,5 +609,185 @@ void main() {
         );
       });
     }
+
+    final bearerFile = {
+      'kind': 'bearer-token',
+      'token': 't0p-secret',
+      'origins': ['https://graph.facebook.com', 'https://cdn.example'],
+      'created': 'messages.0.id',
+      'refusedBecause': 'error.code',
+      'pathPrefixes': {
+        'https://graph.facebook.com': ['/v27.0/123/'],
+      },
+    };
+
+    test('reads a bearer token with its path pins', () {
+      final c = Credential.parse(jsonEncode(bearerFile));
+      expect(c, isA<BearerToken>());
+      expect(c.origins, hasLength(2));
+    });
+
+    for (final (why, broken) in [
+      ('no token', {...bearerFile}..remove('token')),
+      ('an empty token', {...bearerFile, 'token': ''}),
+      (
+        'pins that are not an object',
+        {...bearerFile, 'pathPrefixes': <String>[]},
+      ),
+      (
+        'a pin on a site it is not for',
+        {
+          ...bearerFile,
+          'pathPrefixes': {
+            'https://evil.example': ['/x/'],
+          },
+        },
+      ),
+      (
+        'a pin that is not a path prefix',
+        {
+          ...bearerFile,
+          'pathPrefixes': {
+            'https://graph.facebook.com': ['/v27.0/123/messages'],
+          },
+        },
+      ),
+      (
+        'a site with no pins listed',
+        {
+          ...bearerFile,
+          'pathPrefixes': {'https://graph.facebook.com': <String>[]},
+        },
+      ),
+    ]) {
+      test('refuses $why, never naming the token', () {
+        expect(
+          () => Credential.parse(jsonEncode(broken)),
+          throwsA(
+            isA<FormatException>().having(
+              (e) => e.message,
+              'message',
+              isNot(contains('t0p-secret')),
+            ),
+          ),
+        );
+      });
+    }
+  });
+
+  group('ReplyField', () {
+    String? read(String path, String body) =>
+        ReplyField.parse(path)!.read(body);
+
+    test('a numeric key indexes a list', () {
+      expect(
+        read('messages.0.id', '{"messages":[{"id":"wamid.X"}]}'),
+        'wamid.X',
+      );
+      expect(read('messages.1.id', '{"messages":[{"id":"wamid.X"}]}'), isNull);
+      expect(read('messages.-1.id', '{"messages":[{"id":"wamid.X"}]}'), isNull);
+    });
+
+    test('a numeric key on an object is still a key', () {
+      expect(read('a.0', '{"a":{"0":"zero"}}'), 'zero');
+    });
+
+    test('a whole number reads as its decimal text', () {
+      expect(read('error.code', '{"error":{"code":190}}'), '190');
+      expect(read('error.code', '{"error":{"code":true}}'), isNull);
+      expect(read('error.code', '{"error":{"code":1.5}}'), isNull);
+    });
+  });
+
+  group('bearer token', () {
+    final graph = Origin.parse('https://graph.facebook.com')!;
+    final cdn = Origin.parse('https://cdn.example')!;
+    final claude = SignIn.parse('claude-whatsapp')!;
+    final token = BearerToken(
+      token: 't0p-secret',
+      origins: {graph, cdn},
+      pathPrefixes: {
+        graph: {PathPrefix.parse('/v27.0/123/')!},
+      },
+      created: ReplyField.parse('messages.0.id'),
+      refusedBecause: ReplyField.parse('error.code'),
+    );
+    late Map<String, HttpResult> site;
+
+    WebRequestDriver sending() => WebRequestDriver(
+      {claude: token},
+      now: () => clock,
+      log: (_) {},
+      http: (method, url, headers, body, _) async {
+        calls.add((method: method, url: url, headers: headers));
+        return site['$method $url'] ?? answer(404, 'no such page');
+      },
+    );
+
+    Request to(String path, {Method method = Method.post}) => Request(
+      graph,
+      method: method,
+      path: WebPath.parse(path)!,
+      signIn: claude,
+      body: method == Method.post ? '{}' : null,
+    );
+
+    setUp(() => site = {});
+
+    test('sends the token as it is, fetching nothing', () async {
+      site['POST https://graph.facebook.com/v27.0/123/messages'] = answer(
+        200,
+        '{"messages":[{"id":"wamid.X"}]}',
+      );
+      final out = await sending().carryOutWebRequest(to('/v27.0/123/messages'));
+      expect((out as Ran<WebResponse>).output.created, 'wamid.X');
+      expect(calls.single.headers['authorization'], 'Bearer t0p-secret');
+    });
+
+    test("names Meta's numeric error code as the refusal's word", () async {
+      site['POST https://graph.facebook.com/v27.0/123/messages'] = answer(
+        401,
+        '{"error":{"message":"expired","type":"OAuthException","code":190}}',
+      );
+      final out = await sending().carryOutWebRequest(to('/v27.0/123/messages'));
+      expect((out as Ran<WebResponse>).output.refusedBecause, '190');
+    });
+
+    for (final path in ['/v27.0/999/messages', '/v27.0/123']) {
+      test('refuses $path outside its pin, unsent', () async {
+        final out = await sending().carryOutWebRequest(to(path));
+        final why = (out as Refused).why;
+        expect(why, contains('/v27.0/123/'));
+        expect(why, isNot(contains('t0p-secret')));
+        expect(calls, isEmpty);
+      });
+    }
+
+    test('holds the pin on a redirect within its site', () async {
+      site['GET https://graph.facebook.com/v27.0/123/media'] = answer(
+        302,
+        '',
+        Uri.parse('/v27.0/999/x?access_token=leak'),
+      );
+      final out = await sending().carryOutWebRequest(
+        to('/v27.0/123/media', method: Method.get),
+      );
+      expect((out as Refused).why, isNot(contains('leak')));
+      expect(calls.where((c) => c.url.path == '/v27.0/999/x'), isEmpty);
+    });
+
+    test('a site with no pin is unbounded, and never sees the token', () async {
+      site['GET https://graph.facebook.com/v27.0/123/media'] = answer(
+        302,
+        '',
+        Uri.parse('https://cdn.example/any/where'),
+      );
+      site['GET https://cdn.example/any/where'] = answer(200, 'image');
+      final out = await sending().carryOutWebRequest(
+        to('/v27.0/123/media', method: Method.get),
+      );
+      expect(out, isA<Ran<WebResponse>>());
+      expect(calls.last.headers, isNot(contains('authorization')));
+    });
   });
 }
