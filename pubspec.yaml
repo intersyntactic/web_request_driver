@@ -1,8 +1,8 @@
 name: is_web_request_driver
 description: >-
   intersyntactic's web request driver: sends requests out of the home under the
-  person's sign-ins, holding each sign-in's secret so no tool or record
-  ever sees it.
+  person's sign-ins, holding each sign-in's secret so neither a tool nor the
+  logbook ever sees it.
 version: 0.7.0
 repository: https://github.com/intersyntactic/web_request_driver
 

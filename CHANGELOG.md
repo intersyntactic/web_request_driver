@@ -53,8 +53,8 @@
 
 - `httpCall` no longer follows redirects. A 3xx comes back as the response's
   status, so a request goes only to the site it was decided for, and the
-  record shows where it went. `dart:io` followed GET and HEAD redirects, and
-  a POST's 303, to any site, up to five hops, and the record never showed it.
+  logbook shows where it went. `dart:io` followed GET and HEAD redirects, and
+  a POST's 303, to any site, up to five hops, and the logbook never showed it.
 
 ## 0.4.1
 
@@ -98,7 +98,7 @@
 - `WebDriverSocket` in `package:is_web_driver/service.dart`: the airlock's
   side, which `CarriesOutWebRequests` and holds no secret.
 - Why a destination refused reaches the airlock as a word, not a body, since
-  the record keeps it for good. `WebRequestOutcome.refusedBecause` is
+  the logbook keeps it for good. `WebRequestOutcome.refusedBecause` is
   the reply field the sign-in's file names in `refusedBecause`, such as
   `error.code`. A refused token's `Refused` reason carries OAuth's `error`
   code. The whole body is only logged, for whoever runs the driver

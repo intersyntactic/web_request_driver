@@ -18,7 +18,7 @@ sealed class Credential {
 
   /// Where a non-2xx reply names why, in a word, such as `error.code`; null
   /// when it doesn't. The rest of the body goes only to the driver's log,
-  /// since the record keeps what it is given for good.
+  /// since the logbook keeps what it is given for good.
   final ReplyField? refusedBecause;
 
   /// [raw], a sign-in's credential file, or a [FormatException] naming what

@@ -147,7 +147,7 @@ void main() {
       final sent = ((await d.carryOutWebRequest(
         post(signIn: bot),
       )) as Ran<WebResponse>).output;
-      // The word the sign-in names, for the record; the rest only logged.
+      // The word the sign-in names, for the logbook; the rest only logged.
       expect(sent.refusedBecause, 'ConversationNotFound');
       expect(log.single, contains('19:abc@thread'));
       expect(sent.created, isNull);
@@ -166,7 +166,7 @@ void main() {
           answer(401, '{"error":"invalid_client","error_codes":[7000215]}'),
     );
     final out = await d.carryOutWebRequest(post(signIn: bot));
-    // OAuth's own error code for the record; Microsoft's number only logged.
+    // OAuth's own error code for the logbook; Microsoft's number only logged.
     expect((out as Refused).why, contains('invalid_client'));
     expect(out.why, isNot(contains('7000215')));
     expect(out.why, isNot(contains('s3cret')));
