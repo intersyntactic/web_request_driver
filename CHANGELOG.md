@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.0
+
+- **Breaking:** a second kind, `bearer-token` (`BearerToken`): a token
+  issued ahead of time, such as a Meta system user's, sent as
+  `Authorization: Bearer` and never fetched or refreshed. A `switch` over
+  `Credential` needs its case.
+- `pathPrefixes`, optional on every kind: for each site it lists, the
+  only path prefixes the sign-in reaches there. A request or redirect
+  outside them is refused and never sent.
+- A reply field path's numeric key indexes a JSON list (`messages.0.id`),
+  and a whole number reads as its digits (Meta's `error.code` is 190).
+
 ## 0.8.0
 
 - **Breaking:** is_effects ^0.13.0.

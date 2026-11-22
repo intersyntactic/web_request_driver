@@ -78,11 +78,34 @@ in that directory. This package never reads the environment.
 | kind | signs with | fields |
 |---|---|---|
 | `client-credentials` | an OAuth 2 bearer token from `tokenUrl` (https only) | `tokenUrl`, `clientId`, `secret`, optional `scope` |
+| `bearer-token` | the bearer token it holds, issued ahead of time and never refreshed | `token` |
 
 Every kind also takes `origins`, the only sites the sign-in is ever shown
-to, and two optional reply fields, each a path of keys such as `error.code`:
-`created`, naming what a 2xx reply made, and `refusedBecause`, naming why a
-non-2xx reply refused.
+to, and two optional reply fields, each a path of keys such as `error.code`
+or `messages.0.id` (a number indexes a list): `created`, naming what a 2xx
+reply made, and `refusedBecause`, naming why a non-2xx reply refused. Either
+reads text, or a whole number as its digits.
+
+A kind may also take `pathPrefixes`, an object from some of its `origins`
+to the path prefixes it reaches there. A request, and every redirect, to a
+site listed there must be under one of them; a site not listed is bounded
+only by `origins`. A prefix ends in `/` and covers only longer paths. This
+bounds a broad token in the one place that holds it, whatever the request
+was granted.
+
+For example, `claude-whatsapp` is a Meta system user's token. It could send
+from every number on the business account, so it is pinned to one:
+
+```json
+{
+  "kind": "bearer-token",
+  "token": "<system user access token>",
+  "origins": ["https://graph.facebook.com"],
+  "pathPrefixes": {"https://graph.facebook.com": ["/v27.0/<phone number id>/"]},
+  "created": "messages.0.id",
+  "refusedBecause": "error.code"
+}
+```
 
 For example, `cam-teams` is a Teams bot. Its `created` is the new activity's
 id, which a card press names later. Its `refusedBecause` is the Bot

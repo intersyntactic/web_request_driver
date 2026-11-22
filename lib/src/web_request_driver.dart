@@ -79,6 +79,13 @@ final class WebRequestDriver implements CarriesOutWebRequests {
     if (credential != null && !credential.origins.contains(request.origin)) {
       return Refused('$signIn is not for ${request.origin}');
     }
+    if (credential != null &&
+        !credential.reaches(request.origin, request.path)) {
+      return Refused(
+        '$signIn reaches only ${_pins(credential, request.origin)} '
+        'on ${request.origin}',
+      );
+    }
 
     final signedHeaders = {...request.headers};
     if (credential != null) {
@@ -129,17 +136,24 @@ final class WebRequestDriver implements CarriesOutWebRequests {
           '${signIn == null ? '' : ', which $signIn is not for'}',
         );
       }
-      // On its own site a hop stays under the grant; the path is checked
-      // without its query, which `covers` ignores and may hold a token. A
-      // bare site is sent as its root.
+      // A hop's path is checked without its query, which `covers` ignores
+      // and may hold a token. A bare site is sent as its root.
+      final path = next.path.isEmpty ? WebPath.root : WebPath.parse(next.path);
+      // On its own site a hop stays under the grant.
       if (request.grantedPathPrefix case final prefix?
           when origin == request.origin) {
-        final path = next.path.isEmpty
-            ? WebPath.root
-            : WebPath.parse(next.path);
         if (path == null || !prefix.covers(path)) {
           return Refused('${request.origin} redirected out of $prefix');
         }
+      }
+      // On any pinned site a hop stays where the sign-in reaches.
+      if (credential != null &&
+          credential.pathPrefixes.containsKey(origin) &&
+          (path == null || !credential.reaches(origin, path))) {
+        return Refused(
+          '${request.origin} redirected out of '
+          '${_pins(credential, origin)} on $origin',
+        );
       }
       if (redirects.length == maxRedirects) {
         return Refused(
@@ -227,6 +241,10 @@ final class WebRequestDriver implements CarriesOutWebRequests {
     _ => '${e.runtimeType}',
   };
 
+  /// The path prefixes [credential] is pinned to on [origin], for a refusal.
+  static String _pins(Credential credential, Origin origin) =>
+      credential.pathPrefixes[origin]?.join(' ') ?? '/';
+
   /// [url]'s site, or null when it is not an http(s) one.
   static Origin? _origin(Uri url) => Origin.parse(
     Uri(scheme: url.scheme, host: url.host, port: url.port).toString(),
@@ -237,6 +255,8 @@ final class WebRequestDriver implements CarriesOutWebRequests {
     Credential credential,
   ) async {
     switch (credential) {
+      case BearerToken(:final authorization):
+        return Ran(authorization);
       case ClientCredentials():
         final cached = _tokens[signIn];
         if (cached != null) {

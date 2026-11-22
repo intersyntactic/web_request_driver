@@ -7,10 +7,23 @@ import 'package:is_effects/is_effects.dart';
 /// proving who you are, never a destination: what a destination is lives in
 /// the sign-in's file, not in this package.
 sealed class Credential {
-  Credential({required this.origins, this.created, this.refusedBecause});
+  Credential({
+    required this.origins,
+    this.pathPrefixes = const {},
+    this.created,
+    this.refusedBecause,
+  });
 
   /// The only sites this sign-in is ever shown to.
   final Set<Origin> origins;
+
+  /// For a site listed here, the only paths this sign-in reaches there; a
+  /// site of [origins] not listed is not bounded by path.
+  final Map<Origin, Set<PathPrefix>> pathPrefixes;
+
+  /// Whether this sign-in may reach [path] on [origin], one of [origins].
+  bool reaches(Origin origin, WebPath path) =>
+      pathPrefixes[origin]?.any((p) => p.covers(path)) ?? true;
 
   /// Where a 2xx reply names what the destination made, such as `id`; null
   /// when it makes nothing worth recording.
@@ -41,6 +54,7 @@ sealed class Credential {
       },
       _ => throw const FormatException('credential names no origins'),
     };
+    final pathPrefixes = _pathPrefixes(json['pathPrefixes'], origins);
     final created = ReplyField._read(json, 'created');
     final refusedBecause = ReplyField._read(json, 'refusedBecause');
     return switch (json) {
@@ -61,6 +75,16 @@ sealed class Credential {
             _ => throw const FormatException('scope is not text'),
           },
           origins: origins,
+          pathPrefixes: pathPrefixes,
+          created: created,
+          refusedBecause: refusedBecause,
+        ),
+      {'kind': 'bearer-token', 'token': final String token}
+          when token.isNotEmpty =>
+        BearerToken(
+          token: token,
+          origins: origins,
+          pathPrefixes: pathPrefixes,
           created: created,
           refusedBecause: refusedBecause,
         ),
@@ -90,6 +114,30 @@ sealed class Credential {
     return loaded;
   }
 
+  /// [raw], an object of site → path prefixes, each site one of [origins]
+  /// with at least one prefix; empty when absent.
+  static Map<Origin, Set<PathPrefix>> _pathPrefixes(
+    Object? raw,
+    Set<Origin> origins,
+  ) => switch (raw) {
+    null => const {},
+    final Map<String, Object?> bySite => {
+      for (final MapEntry(:key, :value) in bySite.entries)
+        switch (Origin.parse(key)) {
+          final site? when origins.contains(site) => site,
+          _ => throw FormatException('pathPrefixes names $key, not an origin'),
+        }: switch (value) {
+          final List<Object?> list when list.isNotEmpty => {
+            for (final p in list)
+              (p is String ? PathPrefix.parse(p) : null) ??
+                  (throw FormatException('not a path prefix: $p')),
+          },
+          _ => throw FormatException('pathPrefixes lists none for $key'),
+        },
+    },
+    _ => throw const FormatException('pathPrefixes is not an object'),
+  };
+
   /// The secret travels to it, so never in the clear.
   static Uri _https(String raw) {
     final uri = Uri.tryParse(raw);
@@ -110,6 +158,7 @@ final class ClientCredentials extends Credential {
     required this._secret,
     this.scope,
     required super.origins,
+    super.pathPrefixes,
     super.created,
     super.refusedBecause,
   });
@@ -129,8 +178,25 @@ final class ClientCredentials extends Credential {
   ).query;
 }
 
-/// A text field in a JSON reply, by its path of object keys: `id`, or
-/// `error.code` for `{"error": {"code": "…"}}`.
+/// A bearer token issued ahead of time and kept as given, such as a Meta
+/// system user's: nothing is fetched or refreshed.
+final class BearerToken extends Credential {
+  BearerToken({
+    required this._token,
+    required super.origins,
+    super.pathPrefixes,
+    super.created,
+    super.refusedBecause,
+  });
+
+  final String _token;
+
+  String get authorization => 'Bearer $_token';
+}
+
+/// A text field in a JSON reply, by its path of keys: `id`, `error.code`
+/// for `{"error": {"code": "…"}}`, or `messages.0.id`, where a number
+/// indexes a list.
 final class ReplyField {
   ReplyField._(this._keys);
 
@@ -151,8 +217,8 @@ final class ReplyField {
         _ => throw FormatException('$name is not a field path'),
       };
 
-  /// The non-empty text at this path in [body], or null when [body] is not
-  /// JSON or has no text there.
+  /// The non-empty text, or whole number as its digits, at this path in
+  /// [body]; null when [body] is not JSON or has neither there.
   String? read(String body) {
     Object? at;
     try {
@@ -161,9 +227,20 @@ final class ReplyField {
       return null;
     }
     for (final key in _keys) {
-      at = at is Map<String, Object?> ? at[key] : null;
+      at = switch (at) {
+        final Map<String, Object?> object => object[key],
+        final List<Object?> list => switch (int.tryParse(key)) {
+          final i? when i >= 0 && i < list.length => list[i],
+          _ => null,
+        },
+        _ => null,
+      };
     }
-    return at is String && at.isNotEmpty ? at : null;
+    return switch (at) {
+      final String text when text.isNotEmpty => text,
+      final int number => '$number',
+      _ => null,
+    };
   }
 
   @override
