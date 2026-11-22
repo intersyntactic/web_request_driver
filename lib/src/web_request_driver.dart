@@ -130,10 +130,13 @@ final class WebRequestDriver implements CarriesOutWebRequests {
         );
       }
       // On its own site a hop stays under the grant; the path is checked
-      // without its query, which `covers` ignores and may hold a token.
+      // without its query, which `covers` ignores and may hold a token. A
+      // bare site is sent as its root.
       if (request.grantedPathPrefix case final prefix?
           when origin == request.origin) {
-        final path = WebPath.parse(next.path);
+        final path = next.path.isEmpty
+            ? WebPath.root
+            : WebPath.parse(next.path);
         if (path == null || !prefix.covers(path)) {
           return Refused('${request.origin} redirected out of $prefix');
         }

@@ -493,6 +493,21 @@ void main() {
         expect(await granted(), isA<Refused>());
         expectNeverCalled('/v1.0/drives/other/x');
       });
+
+      test('reads a hop to the bare site as its root', () async {
+        site['GET https://api.example/a'] = redirect('https://api.example?x=1');
+        site['GET https://api.example?x=1'] = answer(200, 'home');
+        final whole = await ran(
+          reading().carryOutWebRequest(
+            get('/a', granted: PathPrefix.parse('/')!),
+          ),
+        );
+        expect((whole.body as TextBody).text, 'home');
+        site['GET https://api.example$content'] = redirect(
+          'https://api.example',
+        );
+        expect(await granted(), isA<Refused>());
+      });
     });
 
     test('answers a redirect to anything but a GET', () async {
