@@ -31,7 +31,7 @@ Teams, Slack or GitHub is a file, not a change to this package.
 5. **It says why a destination refused.** A failure moves a piece of
    information of its own: why. A `400`'s body names the problem, and a
    refused token's names the cause (`AADSTS7000215` is a wrong secret).
-   The record keeps what it's given for good, so it gets **a word, not the
+   The logbook keeps what it's given for good, so it gets **a word, not the
    body**. `WebResponse.refusedBecause` is the one field the sign-in names as its
    reason, such as `error.code` → `ConversationNotFound`. A refused token's
    `Refused` reason carries OAuth's own `error` code, such as

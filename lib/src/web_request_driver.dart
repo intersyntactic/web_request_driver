@@ -40,7 +40,7 @@ final class WebRequestDriver implements CarriesOutWebRequests {
   final HttpCall _http;
   final DateTime Function() _now;
 
-  /// The largest body read from a site. A body kept for the record that is
+  /// The largest body read from a site. A body kept for the logbook that is
   /// larger is [Refused].
   final int maxBodyBytes;
 
@@ -50,7 +50,7 @@ final class WebRequestDriver implements CarriesOutWebRequests {
   /// A token reply is a few hundred bytes; anything near this is not one.
   static const _maxTokenBytes = 64 * 1024;
 
-  /// For whoever runs the driver, not the record: one line per 2xx (site,
+  /// For whoever runs the driver, not the logbook: one line per 2xx (site,
   /// status, created id), and a refusal's reason when only its body says
   /// it, from a non-2xx reply or a token the sign-in service would not issue.
   final void Function(String line) _log;
@@ -331,7 +331,7 @@ final class _TokenRefused implements Exception {
 /// [HttpCall] over `dart:io`, giving up after ten seconds without progress.
 /// A redirect is answered, not followed: the driver decides which to
 /// follow, since `dart:io` would send the request to any site and the
-/// record would not show it.
+/// logbook would not show it.
 Future<HttpResult> httpCall(
   String method,
   Uri url,
