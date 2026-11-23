@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.1
+
+- is_effects ^0.14.2, locked at 0.14.2, so a build of this driver
+  resolves the same is_effects as the rest of the home. No change in
+  behaviour.
+
 ## 0.11.0
 
 - **Breaking:** is_effects ^0.14.0. The socket reads a `GrantedRequest`
