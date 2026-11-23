@@ -1,6 +1,7 @@
 # is_web_request_driver
 
-intersyntactic's web request driver: the service that `CarriesOutWebRequests` (from
+intersyntactic's web request driver: the service behind the airlock's
+`CarriesOutWebRequests` (from
 [is_effects](https://github.com/intersyntactic/effects)), making each
 `Request` under one of the person's sign-ins. A tool describes the request
 and names a sign-in such as `cam-teams`, and the airlock decides on it. The
@@ -156,8 +157,10 @@ with the airlock, so neither side keeps a codec of its own:
 
 A web request that got a 4xx reply still `ran`. A path that would name
 another site can't be built as a `WebPath`, and the socket refuses one
-arriving as text before anything is made. The airlock side is `WebRequestDriverSocket` from
-`package:is_web_request_driver/service.dart`. It `CarriesOutWebRequests` and holds no secret, so the airlock
+arriving as text before anything is made. `WebRequestDriver.start` is
+the service: it binds the socket and serves it until `close`. The airlock
+side is `WebRequestDriverSocket`, from the same library. It
+`CarriesOutWebRequests` and holds no secret, so the airlock
 holds it as it would any other way of carrying out web requests. Its
 optional `checkDriver` looks at the connected driver before the request is
 written, such as which release the kernel says it is, and a reason it

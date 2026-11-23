@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.10.0
+
+- **Breaking:** `WebRequestDriver` is the service, in one class:
+  `WebRequestDriver.start(signIns, caller:, socket:, http:, now:, log:,
+  maxBodyBytes:)` binds the socket and serves it until `close()`.
+  `WebRequestDriverService` is gone, and `WebRequestDriver` no longer
+  `CarriesOutWebRequests` in-process; only `WebRequestDriverSocket` does.
+- **Breaking:** `package:is_web_request_driver/service.dart` is gone.
+  `WebRequestDriverSocket`, `CheckDriver` and `UserId` come from
+  `package:is_web_request_driver/is_web_request_driver.dart`.
+- The socket's protocol, and how the driver signs, redirects and refuses,
+  are unchanged.
+
 ## 0.9.0
 
 - **Breaking:** a second kind, `bearer-token` (`BearerToken`): a token

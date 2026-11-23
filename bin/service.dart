@@ -1,4 +1,4 @@
-/// Runs the web request driver as a service (see `package:is_web_request_driver/service.dart`):
+/// Runs the web request driver as a service (see `WebRequestDriver`):
 ///
 ///     WEB_REQUEST_DRIVER_SOCKET=/run/intersyntactic-web-driver/web-driver.sock \
 ///       WEB_REQUEST_DRIVER_CALLER=airlock \
@@ -17,7 +17,6 @@ import 'dart:io';
 
 import 'package:is_effects/is_effects.dart';
 import 'package:is_web_request_driver/is_web_request_driver.dart';
-import 'package:is_web_request_driver/service.dart';
 
 Future<void> main() async {
   final env = Platform.environment;
@@ -39,12 +38,13 @@ Future<void> main() async {
   } on Exception catch (e) {
     _fail('$e');
   }
-  final WebRequestDriverService service;
+  final WebRequestDriver driver;
   try {
-    service = await WebRequestDriverService.start(
-      WebRequestDriver(signIns, log: stdout.writeln),
-      uid,
-      File(socket),
+    driver = await WebRequestDriver.start(
+      signIns,
+      caller: uid,
+      socket: File(socket),
+      log: stdout.writeln,
     );
   } on Object catch (e) {
     _fail('$e');
@@ -60,7 +60,7 @@ Future<void> main() async {
     });
   }
   await stop.future;
-  await service.close();
+  await driver.close();
   exit(0);
 }
 
