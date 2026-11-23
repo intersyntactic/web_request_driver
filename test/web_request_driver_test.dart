@@ -53,13 +53,16 @@ void main() {
     },
   );
 
-  Request post({SignIn? signIn, String path = '/v3/things'}) => Request(
-    api,
-    method: Method.post,
-    path: WebPath.parse(path)!,
-    signIn: signIn,
-    body: '{}',
-  );
+  GrantedRequest post({SignIn? signIn, String path = '/v3/things'}) =>
+      grantedWholeSite(
+        ProposedRequest(
+          api,
+          method: Method.post,
+          path: WebPath.parse(path)!,
+          signIn: signIn,
+          body: '{}',
+        ),
+      );
 
   setUp(() {
     calls = [];
@@ -96,7 +99,9 @@ void main() {
   });
 
   test('never shows a sign-in to a site it is not for', () async {
-    final other = Request(Origin.parse('https://example.com')!, signIn: bot);
+    final other = grantedWholeSite(
+      ProposedRequest(Origin.parse('https://example.com')!, signIn: bot),
+    );
     expect(await (await driver()).carryOutWebRequest(other), isA<Refused>());
     expect(calls, isEmpty);
   });
@@ -266,17 +271,19 @@ void main() {
           },
         );
 
-    Request get(
+    GrantedRequest get(
       String path, {
       BodyToKeep keep = BodyToKeep.text,
       PathPrefix? granted,
-    }) => Request(
-      api,
-      path: WebPath.parse(path)!,
-      grantedPathPrefix: granted,
-      signIn: bot,
-      headers: {'accept': '*/*'},
-      keep: keep,
+    }) => GrantedRequest.under(
+      ProposedRequest(
+        api,
+        path: WebPath.parse(path)!,
+        signIn: bot,
+        headers: {'accept': '*/*'},
+        keep: keep,
+      ),
+      granted ?? wholeSite,
     );
 
     HttpResult redirect(String to) => answer(302, '', Uri.parse(to));
@@ -354,11 +361,13 @@ void main() {
       site['POST https://api.example/a'] = answer(201, 'x' * 11);
       final r = await ran(
         (await reading(maxBodyBytes: 10)).carryOutWebRequest(
-          Request(
-            api,
-            method: Method.post,
-            path: WebPath.parse('/a')!,
-            signIn: bot,
+          grantedWholeSite(
+            ProposedRequest(
+              api,
+              method: Method.post,
+              path: WebPath.parse('/a')!,
+              signIn: bot,
+            ),
           ),
         ),
       );
@@ -404,7 +413,7 @@ void main() {
     test('with no sign-in, follows only within the site decided', () async {
       site['GET https://api.example/a'] = redirect('https://files.example/f');
       final out = await (await reading()).carryOutWebRequest(
-        Request(api, path: WebPath.parse('/a')!),
+        grantedWholeSite(ProposedRequest(api, path: WebPath.parse('/a')!)),
       );
       expect(out, isA<Refused>());
       expect(calls.where((c) => c.url.host == 'files.example'), isEmpty);
@@ -499,6 +508,20 @@ void main() {
         expectNeverCalled('/v1.0/drives/other/x');
       });
 
+      test('a grant of the whole site follows a hop anywhere on it', () async {
+        site['GET https://api.example$content'] = redirect('/elsewhere/x/y');
+        site['GET https://api.example/elsewhere/x/y'] = answer(200, 'there');
+        final r = await ran(
+          (await reading()).carryOutWebRequest(
+            get(content, granted: wholeSite),
+          ),
+        );
+        expect((r.body as TextBody).text, 'there');
+        expect(r.redirects.map((h) => '$h'), [
+          'https://api.example/elsewhere/x/y',
+        ]);
+      });
+
       test('reads a hop to the bare site as its root', () async {
         site['GET https://api.example/a'] = redirect('https://api.example?x=1');
         site['GET https://api.example?x=1'] = answer(200, 'home');
@@ -523,11 +546,13 @@ void main() {
       );
       final r = await ran(
         (await reading()).carryOutWebRequest(
-          Request(
-            api,
-            method: Method.post,
-            path: WebPath.parse('/a')!,
-            signIn: bot,
+          grantedWholeSite(
+            ProposedRequest(
+              api,
+              method: Method.post,
+              path: WebPath.parse('/a')!,
+              signIn: bot,
+            ),
           ),
         ),
       );
@@ -729,13 +754,16 @@ void main() {
       },
     );
 
-    Request to(String path, {Method method = Method.post}) => Request(
-      graph,
-      method: method,
-      path: WebPath.parse(path)!,
-      signIn: claude,
-      body: method == Method.post ? '{}' : null,
-    );
+    GrantedRequest to(String path, {Method method = Method.post}) =>
+        grantedWholeSite(
+          ProposedRequest(
+            graph,
+            method: method,
+            path: WebPath.parse(path)!,
+            signIn: claude,
+            body: method == Method.post ? '{}' : null,
+          ),
+        );
 
     setUp(() => site = {});
 

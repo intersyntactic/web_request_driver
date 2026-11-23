@@ -80,13 +80,15 @@ void main() {
   test('carries out a request from its caller, and answers it', () async {
     await start();
     final out = await CallerOverSocket(socket).carryOutWebRequest(
-      Request(
-        api,
-        method: Method.post,
-        path: WebPath.parse('/v3/things')!,
-        signIn: bot,
-        headers: {'content-type': 'application/json'},
-        body: '{"a":1}',
+      grantedWholeSite(
+        ProposedRequest(
+          api,
+          method: Method.post,
+          path: WebPath.parse('/v3/things')!,
+          signIn: bot,
+          headers: {'content-type': 'application/json'},
+          body: '{"a":1}',
+        ),
       ),
     );
     final answer = (out as Ran<WebResponse>).output;
@@ -106,7 +108,9 @@ void main() {
   test('carries why a destination refused back across the socket', () async {
     await start();
     final out = await CallerOverSocket(socket).carryOutWebRequest(
-      Request(api, path: WebPath.parse('/refuse')!, signIn: bot),
+      grantedWholeSite(
+        ProposedRequest(api, path: WebPath.parse('/refuse')!, signIn: bot),
+      ),
     );
     final answer = (out as Ran<WebResponse>).output;
     expect(answer.status, 400);
@@ -115,7 +119,8 @@ void main() {
 
   test('answers no one but its caller, and carries out nothing', () async {
     await start(caller: UserId.parse(myUid + 1));
-    final out = await CallerOverSocket(socket).carryOutWebRequest(Request(api));
+    final out = await CallerOverSocket(socket)
+        .carryOutWebRequest(grantedWholeSite(ProposedRequest(api)));
     expect(out, isA<Refused>());
     expect(sent, isEmpty);
   });
@@ -127,10 +132,43 @@ void main() {
         'origin': 'https://api.example',
         'method': 'get',
         'path': '',
+        'grantedPathPrefix': '/',
         'headers': {'Authorization': 'Bearer stolen'},
       }),
     );
     expect(answer, contains('refused'));
+    expect(answer, contains('headers'));
+    expect(sent, isEmpty);
+  });
+
+  // The airlock's requests before is_effects 0.14 carried no grant, so a
+  // driver ahead of its airlock refuses them all rather than guess `/`.
+  test('refuses a request carrying no grant', () async {
+    await start();
+    final answer = await raw(
+      jsonEncode({
+        'origin': 'https://api.example',
+        'method': 'get',
+        'path': '/a',
+        'headers': <String, String>{},
+      }),
+    );
+    expect(answer, contains('grantedPathPrefix: missing'));
+    expect(sent, isEmpty);
+  });
+
+  test('refuses a request whose path its grant does not cover', () async {
+    await start();
+    final answer = await raw(
+      jsonEncode({
+        'origin': 'https://api.example',
+        'method': 'get',
+        'path': '/b/x',
+        'grantedPathPrefix': '/a/',
+        'headers': <String, String>{},
+      }),
+    );
+    expect(answer, contains('not under'));
     expect(sent, isEmpty);
   });
 
@@ -152,6 +190,7 @@ void main() {
           'origin': 'https://api.example',
           'method': 'get',
           'path': path,
+          'grantedPathPrefix': '/',
           'signIn': 'some-bot',
           'headers': <String, String>{},
         }),
@@ -172,7 +211,8 @@ void main() {
     socket.writeAsStringSync('');
     await start();
     expect(
-      await CallerOverSocket(socket).carryOutWebRequest(Request(api)),
+      await CallerOverSocket(socket)
+          .carryOutWebRequest(grantedWholeSite(ProposedRequest(api))),
       isA<Ran<WebResponse>>(),
     );
   });
