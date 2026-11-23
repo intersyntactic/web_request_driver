@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:is_effects/is_effects.dart';
@@ -18,9 +19,34 @@ Future<File> freshSocket() async {
   return File('${dir.path}/s');
 }
 
+/// The caller's side of the socket, as the airlock holds its own: one
+/// request in is_effects' JSON, then one answer line.
+final class CallerOverSocket implements CarriesOutWebRequests {
+  CallerOverSocket(this.socket);
+
+  final File socket;
+
+  @override
+  Future<Outcome<WebResponse>> carryOutWebRequest(Request request) async {
+    try {
+      final s = await Socket.connect(
+        InternetAddress(socket.path, type: InternetAddressType.unix),
+        0,
+      );
+      s.add(utf8.encode(jsonEncode(encodeRequest(request))));
+      await s.close();
+      final answer = await utf8.decoder.bind(s).join();
+      if (answer.isEmpty) return const Refused('refused caller');
+      return decodeOutcome(jsonDecode(answer), decodeWebResponse);
+    } on SocketException catch (e) {
+      return Refused(e.message);
+    }
+  }
+}
+
 /// Starts a [WebRequestDriver] for this process's user on a fresh socket,
-/// closed when the test ends, and returns the airlock's side of it, so every
-/// request and answer crosses the wire.
+/// closed when the test ends, and returns a caller of it, so every request
+/// and answer crosses the wire.
 Future<CarriesOutWebRequests> startDriver(
   Map<SignIn, Credential> signIns, {
   HttpCall? http,
@@ -39,5 +65,5 @@ Future<CarriesOutWebRequests> startDriver(
     maxBodyBytes: maxBodyBytes,
   );
   addTearDown(driver.close);
-  return WebRequestDriverSocket(socket);
+  return CallerOverSocket(socket);
 }

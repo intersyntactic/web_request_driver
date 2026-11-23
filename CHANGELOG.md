@@ -6,10 +6,11 @@
   `WebRequestDriver.start(signIns, caller:, socket:, http:, now:, log:,
   maxBodyBytes:)` binds the socket and serves it until `close()`.
   `WebRequestDriverService` is gone, and `WebRequestDriver` no longer
-  `CarriesOutWebRequests` in-process; only `WebRequestDriverSocket` does.
-- **Breaking:** `package:is_web_request_driver/service.dart` is gone.
-  `WebRequestDriverSocket`, `CheckDriver` and `UserId` come from
-  `package:is_web_request_driver/is_web_request_driver.dart`.
+  `CarriesOutWebRequests` in-process.
+- **Breaking:** `package:is_web_request_driver/service.dart` is gone, with
+  `WebRequestDriverSocket` and `CheckDriver`. A caller holds its own client
+  over is_effects' wire codec, so nothing outside this package depends on
+  its code. `UserId` comes from the main library.
 - The socket's protocol, and how the driver signs, redirects and refuses,
   are unchanged.
 

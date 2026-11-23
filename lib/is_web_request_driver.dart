@@ -9,4 +9,3 @@ export 'package:is_unix_socket_user_check/is_unix_socket_user_check.dart'
 export 'src/credential.dart'
     show BearerToken, ClientCredentials, Credential, ReplyField;
 export 'src/web_request_driver.dart';
-export 'src/web_request_driver_socket.dart';

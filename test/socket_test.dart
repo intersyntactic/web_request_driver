@@ -79,7 +79,7 @@ void main() {
 
   test('carries out a request from its caller, and answers it', () async {
     await start();
-    final out = await WebRequestDriverSocket(socket).carryOutWebRequest(
+    final out = await CallerOverSocket(socket).carryOutWebRequest(
       Request(
         api,
         method: Method.post,
@@ -105,7 +105,7 @@ void main() {
 
   test('carries why a destination refused back across the socket', () async {
     await start();
-    final out = await WebRequestDriverSocket(socket).carryOutWebRequest(
+    final out = await CallerOverSocket(socket).carryOutWebRequest(
       Request(api, path: WebPath.parse('/refuse')!, signIn: bot),
     );
     final answer = (out as Ran<WebResponse>).output;
@@ -113,28 +113,9 @@ void main() {
     expect(answer.refusedBecause, 'BadArgument');
   });
 
-  // The answer from a driver before is_effects' wire format: never guessed
-  // at, so a driver and airlock deployed out of step fail loudly.
-  test('an answer it cannot read is a refusal', () async {
-    final server = await ServerSocket.bind(
-      InternetAddress(socket.path, type: InternetAddressType.unix),
-      0,
-    );
-    addTearDown(server.close);
-    server.listen((s) async {
-      await s.drain<void>();
-      s.write('{"ran":{"status":201,"created":"1:abc"}}\n');
-      await s.close();
-    });
-    final out = await WebRequestDriverSocket(socket)
-        .carryOutWebRequest(Request(api));
-    expect((out as Refused).why, contains('unreadable answer'));
-  });
-
   test('answers no one but its caller, and carries out nothing', () async {
     await start(caller: UserId.parse(myUid + 1));
-    final out = await WebRequestDriverSocket(socket)
-        .carryOutWebRequest(Request(api));
+    final out = await CallerOverSocket(socket).carryOutWebRequest(Request(api));
     expect(out, isA<Refused>());
     expect(sent, isEmpty);
   });
@@ -187,43 +168,11 @@ void main() {
     expect(sent, isEmpty);
   });
 
-  test('a driver the check refuses never sees the request', () async {
-    await start();
-    final out = await WebRequestDriverSocket(
-      socket,
-      checkDriver: (_) async => 'not the release it should be',
-    ).carryOutWebRequest(Request(api));
-    expect((out as Refused).why, contains('not the release it should be'));
-    expect(sent, isEmpty);
-  });
-
-  test('a driver the check passes carries out the request', () async {
-    await start();
-    var checked = 0;
-    final out = await WebRequestDriverSocket(
-      socket,
-      checkDriver: (_) async {
-        checked++;
-        return null;
-      },
-    ).carryOutWebRequest(Request(api));
-    expect(out, isA<Ran<WebResponse>>());
-    expect(checked, 1);
-    expect(sent, hasLength(1));
-  });
-
-  test('says so when no service is listening', () async {
-    expect(
-      await WebRequestDriverSocket(socket).carryOutWebRequest(Request(api)),
-      isA<Refused>(),
-    );
-  });
-
   test('replaces a socket file nothing listens on', () async {
     socket.writeAsStringSync('');
     await start();
     expect(
-      await WebRequestDriverSocket(socket).carryOutWebRequest(Request(api)),
+      await CallerOverSocket(socket).carryOutWebRequest(Request(api)),
       isA<Ran<WebResponse>>(),
     );
   });

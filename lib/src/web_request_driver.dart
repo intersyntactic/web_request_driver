@@ -30,9 +30,8 @@ typedef HttpCall = Future<HttpResult> Function(
 ///
 /// A caller connects, writes one [Request] in is_effects' JSON
 /// ([encodeRequest]) and closes its side; the driver answers one line, the
-/// `Outcome<WebResponse>` ([encodeOutcome]), and closes.
-/// `WebRequestDriverSocket` is that caller. Who is calling is read from the
-/// socket as the kernel reports it, never from the request.
+/// `Outcome<WebResponse>` ([encodeOutcome]), and closes. Who is calling is
+/// read from the socket as the kernel reports it, never from the request.
 ///
 /// Each request is signed with the secret of the sign-in it names, and sent
 /// only to the sites that sign-in is for.

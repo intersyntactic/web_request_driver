@@ -159,11 +159,7 @@ A web request that got a 4xx reply still `ran`. A path that would name
 another site can't be built as a `WebPath`, and the socket refuses one
 arriving as text before anything is made. `WebRequestDriver.start` is
 the service: it binds the socket and serves it until `close`. The airlock
-side is `WebRequestDriverSocket`, from the same library. It
-`CarriesOutWebRequests` and holds no secret, so the airlock
-holds it as it would any other way of carrying out web requests. Its
-optional `checkDriver` looks at the connected driver before the request is
-written, such as which release the kernel says it is, and a reason it
-returns refuses the request unsent. Each
+holds its own client of the socket, written over is_effects' wire codec,
+so it depends on nothing in this package. Each
 sign-in is its own file, so a sign-in that needs a wall of its own can run
 as a second instance of this service with only that file.
