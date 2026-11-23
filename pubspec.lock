@@ -149,10 +149,10 @@ packages:
     dependency: "direct main"
     description:
       name: is_effects
-      sha256: "17181a8ca28b61bc749a2c43c15b08f2316599556c98e63937249faace3016a0"
+      sha256: "95b051e592edb4e04241e89be3ac1500c0abaf58fdec8e64f40a2cbe7a7ebfc7"
       url: "https://pub.dev"
     source: hosted
-    version: "0.14.0"
+    version: "0.14.2"
   is_path_confinement:
     dependency: transitive
     description:
@@ -169,6 +169,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.1.0"
+  is_web_address_vocabulary:
+    dependency: transitive
+    description:
+      name: is_web_address_vocabulary
+      sha256: "232241a06a2871213e110f52f01c8c68b6c98fdcdf00fcfb491c8e24d10d8dac"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.1"
   lints:
     dependency: "direct dev"
     description:
