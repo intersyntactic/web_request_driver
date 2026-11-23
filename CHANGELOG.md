@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.11.0
+
+- **Breaking:** is_effects ^0.14.0. The socket reads a `GrantedRequest`
+  (`decodeGrantedRequest`), so a request must carry `grantedPathPrefix`
+  covering its path, or it is refused before anything is sent. An
+  airlock built before is_effects 0.14 sends none, so this driver must
+  be deployed with or after an airlock that does.
+- A redirect on the request's own site is checked against its grant on
+  every request, since every grant now has a prefix; a grant of a whole
+  site is `/`, which covers every path on it.
+
 ## 0.10.0
 
 - **Breaking:** `WebRequestDriver` is the service, in one class:

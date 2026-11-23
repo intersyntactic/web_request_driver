@@ -10,6 +10,13 @@ final myUid = int.parse(
 );
 final me = UserId.parse(myUid)!;
 
+final wholeSite = PathPrefix.parse('/')!;
+
+/// [proposed] granted the whole of its site, as a rule naming no path
+/// grants it.
+GrantedRequest grantedWholeSite(ProposedRequest proposed) =>
+    GrantedRequest.under(proposed, wholeSite);
+
 /// A Unix socket in a folder of its own, removed when the test ends. A
 /// Unix socket's path is short on macOS, so not under the test's own temp
 /// directory.
@@ -27,13 +34,15 @@ final class CallerOverSocket implements CarriesOutWebRequests {
   final File socket;
 
   @override
-  Future<Outcome<WebResponse>> carryOutWebRequest(Request request) async {
+  Future<Outcome<WebResponse>> carryOutWebRequest(
+    GrantedRequest request,
+  ) async {
     try {
       final s = await Socket.connect(
         InternetAddress(socket.path, type: InternetAddressType.unix),
         0,
       );
-      s.add(utf8.encode(jsonEncode(encodeRequest(request))));
+      s.add(utf8.encode(jsonEncode(encodeGrantedRequest(request))));
       await s.close();
       final answer = await utf8.decoder.bind(s).join();
       if (answer.isEmpty) return const Refused('refused caller');

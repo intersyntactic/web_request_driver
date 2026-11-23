@@ -3,7 +3,7 @@
 intersyntactic's web request driver: the service behind the airlock's
 `CarriesOutWebRequests` (from
 [is_effects](https://github.com/intersyntactic/effects)), making each
-`Request` under one of the person's sign-ins. A tool describes the request
+`GrantedRequest` under one of the person's sign-ins. A tool describes the request
 and names a sign-in such as `cam-teams`, and the airlock decides on it. The
 web request driver holds the secret and is the only piece that ever sees it.
 
@@ -42,7 +42,7 @@ Teams, Slack or GitHub is a file, not a change to this package.
    one line: method, site, sign-in, status and created id, never its path
    (which holds conversation ids) or body. A token service's 200 is never
    logged, since that body is the token.
-6. **It keeps a body only when asked.** `Request.keep` says `none`, `text`
+6. **It keeps a body only when asked.** `ProposedRequest.keep` says `none`, `text`
    or `bytes`, and only a 2xx body is kept. A body over `maxBodyBytes`
    (16 MiB unless the program sets it) is never read past the limit, and
    asking to keep one is `Refused`, as is asking for text that isn't UTF-8.
@@ -51,7 +51,10 @@ Teams, Slack or GitHub is a file, not a change to this package.
    the redirect as its answer. The next site must be one in the sign-in's
    file (with no sign-in, the site the request was decided for), there are
    at most three hops, and the sign-in's secret goes only to the site the
-   request was decided for, never across a hop to another. Every hop is in
+   request was decided for, never across a hop to another. A hop on the
+   request's own site must stay under the path prefix its rule granted,
+   `GrantedRequest.grantedPathPrefix`; a rule for a whole site grants `/`,
+   which covers every path on it. Every hop is in
    `WebResponse.redirects` as its site and path, without the query, since
    a pre-authenticated download address carries its token there. Anything
    else is `Refused`, and nothing is sent to the site it pointed at.
@@ -146,11 +149,13 @@ unanswered, and no web request is made. The caller is a `UserId`, which
 can't be `nobody` or the overflow uid 65534, so the service won't start
 configured for one. A caller writes one request per connection and closes
 its side. The service answers one line and closes. Both are is_effects' own JSON
-(`encodeRequest`, `encodeOutcome` with `encodeWebResponse`), shared
-with the airlock, so neither side keeps a codec of its own:
+(`encodeGrantedRequest`, `encodeOutcome` with `encodeWebResponse`), shared
+with the airlock, so neither side keeps a codec of its own. A request
+with no `grantedPathPrefix`, or one that doesn't cover its path, is
+refused:
 
 ```
-→ {"origin":"https://…","method":"post","path":"/…","signIn":"cam-teams","headers":{…},"body":"…"}
+→ {"origin":"https://…","method":"post","path":"/…","grantedPathPrefix":"/…/","signIn":"cam-teams","headers":{…},"body":"…"}
 ← {"kind":"ran","output":{"status":201,"created":"…","refusedBecause":null}}
 ← {"kind":"refused","why":"…"}
 ```

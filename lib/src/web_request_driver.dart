@@ -150,9 +150,9 @@ final class WebRequestDriver {
       if (tooLarge) {
         outcome = const Refused('request too large');
       } else {
-        final Request decoded;
+        final GrantedRequest decoded;
         try {
-          decoded = decodeRequest(
+          decoded = decodeGrantedRequest(
             jsonDecode(utf8.decode(request.takeBytes(), allowMalformed: true)),
           );
         } on FormatException catch (e) {
@@ -183,7 +183,8 @@ final class WebRequestDriver {
     }
   }
 
-  Future<Outcome<WebResponse>> _carryOut(Request request) async {
+  Future<Outcome<WebResponse>> _carryOut(GrantedRequest granted) async {
+    final request = granted.proposed;
     final url = _url(request);
     if (url == null) return Refused('path leaves ${request.origin}');
 
@@ -258,11 +259,10 @@ final class WebRequestDriver {
       // and may hold a token. A bare site is sent as its root.
       final path = next.path.isEmpty ? WebPath.root : WebPath.parse(next.path);
       // On its own site a hop stays under the grant.
-      if (request.grantedPathPrefix case final prefix?
-          when origin == request.origin) {
-        if (path == null || !prefix.covers(path)) {
-          return Refused('${request.origin} redirected out of $prefix');
-        }
+      final grantedPrefix = granted.grantedPathPrefix;
+      if (origin == request.origin &&
+          (path == null || !grantedPrefix.covers(path))) {
+        return Refused('${request.origin} redirected out of $grantedPrefix');
       }
       // On any pinned site a hop stays where the sign-in reaches.
       if (credential != null &&
@@ -449,7 +449,7 @@ final class WebRequestDriver {
   /// another site. [WebPath] already cannot, so this is the backstop for the
   /// one place a secret would follow the request somewhere it was not
   /// decided to go.
-  static Uri? _url(Request request) {
+  static Uri? _url(ProposedRequest request) {
     final url = Uri.tryParse('${request.origin}${request.path.value}');
     if (url == null || Origin.parse(url.origin) != request.origin) return null;
     return url;
