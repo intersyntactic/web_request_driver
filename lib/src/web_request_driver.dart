@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:is_effects/is_effects.dart';
+import 'package:is_unix_socket_user_check/is_unix_socket_user_check.dart';
 
 import 'credential.dart';
 
@@ -22,27 +23,72 @@ typedef HttpCall = Future<HttpResult> Function(
   int maxBytes,
 );
 
-/// [CarriesOutWebRequests] by signing each request with the secret of the sign-in it
-/// names, and only for the sites that sign-in is for.
-final class WebRequestDriver implements CarriesOutWebRequests {
-  WebRequestDriver(
+/// The web request driver: a service on a Unix socket that only the
+/// airlock's user may call. It runs as its own user, so a sign-in's secret
+/// is readable by this process and no other: not the airlock, not another
+/// driver.
+///
+/// A caller connects, writes one [Request] in is_effects' JSON
+/// ([encodeRequest]) and closes its side; the driver answers one line, the
+/// `Outcome<WebResponse>` ([encodeOutcome]), and closes. Who is calling is
+/// read from the socket as the kernel reports it, never from the request.
+///
+/// Each request is signed with the secret of the sign-in it names, and sent
+/// only to the sites that sign-in is for.
+final class WebRequestDriver {
+  WebRequestDriver._(
+    Map<SignIn, Credential> signIns,
+    this.maxBodyBytes,
+    this._http,
+    this._now,
+    this._log,
+    this._socketUserCheck,
+    this._socket,
+    this._server,
+  ) : _signIns = Map.unmodifiable(signIns);
+
+  /// Listens on [socket], carrying out requests under [signIns] for the
+  /// user [caller] alone. A socket file nothing listens on is replaced.
+  /// [http], [now] and [log] are `dart:io`'s, the clock's and silence by
+  /// default.
+  static Future<WebRequestDriver> start(
     Map<SignIn, Credential> signIns, {
+    required UserId caller,
+    required File socket,
     HttpCall? http,
     DateTime Function()? now,
     void Function(String line)? log,
-    this.maxBodyBytes = 16 * 1024 * 1024,
-  }) : _signIns = Map.unmodifiable(signIns),
-       _http = http ?? httpCall,
-       _now = now ?? DateTime.now,
-       _log = log ?? _silent;
+    int maxBodyBytes = defaultMaxBodyBytes,
+  }) async {
+    final driver = WebRequestDriver._(
+      signIns,
+      maxBodyBytes,
+      http ?? httpCall,
+      now ?? DateTime.now,
+      log ?? _silent,
+      SocketUserCheck.only(caller),
+      socket,
+      await _bind(socket),
+    );
+    driver._server.listen(driver._serve);
+    return driver;
+  }
 
   final Map<SignIn, Credential> _signIns;
   final HttpCall _http;
   final DateTime Function() _now;
+  final SocketUserCheck _socketUserCheck;
+  final File _socket;
+  final ServerSocket _server;
 
   /// The largest body read from a site. A body kept for the logbook that is
   /// larger is [Refused].
   final int maxBodyBytes;
+
+  static const defaultMaxBodyBytes = 16 * 1024 * 1024;
+
+  /// A request is a web request's headers and body, so far smaller than this.
+  static const maxRequest = 1 << 20;
 
   /// Redirects followed for one request; one more is [Refused].
   static const maxRedirects = 3;
@@ -64,8 +110,80 @@ final class WebRequestDriver implements CarriesOutWebRequests {
   /// Shared by concurrent web requests, so a burst asks for one token, not many.
   final _tokens = <SignIn, Future<_Token>>{};
 
-  @override
-  Future<Outcome<WebResponse>> carryOutWebRequest(Request request) async {
+  static Future<ServerSocket> _bind(File socket) async {
+    final address = InternetAddress(
+      socket.path,
+      type: InternetAddressType.unix,
+    );
+    if (socket.existsSync()) {
+      try {
+        (await Socket.connect(address, 0)).destroy();
+        throw StateError('a service is already listening on ${socket.path}');
+      } on SocketException {
+        socket.deleteSync();
+      }
+    }
+    return ServerSocket.bind(address, 0);
+  }
+
+  Future<void> close() async {
+    await _server.close();
+    if (_socket.existsSync()) _socket.deleteSync();
+  }
+
+  Future<void> _serve(Socket socket) async {
+    try {
+      if (!_socketUserCheck.allows(socket)) {
+        socket.destroy();
+        return;
+      }
+      final request = BytesBuilder(copy: false);
+      var tooLarge = false;
+      await for (final chunk in socket) {
+        if (request.length + chunk.length > maxRequest) {
+          tooLarge = true;
+          break;
+        }
+        request.add(chunk);
+      }
+      final Outcome<WebResponse> outcome;
+      if (tooLarge) {
+        outcome = const Refused('request too large');
+      } else {
+        final Request decoded;
+        try {
+          decoded = decodeRequest(
+            jsonDecode(utf8.decode(request.takeBytes(), allowMalformed: true)),
+          );
+        } on FormatException catch (e) {
+          await _answer(socket, Refused('not a request: ${e.message}'));
+          return;
+        }
+        outcome = await _carryOut(decoded);
+      }
+      await _answer(socket, outcome);
+    } on SocketException {
+      socket.destroy();
+    }
+  }
+
+  static Future<void> _answer(
+    Socket socket,
+    Outcome<WebResponse> outcome,
+  ) async {
+    try {
+      socket.add(
+        utf8.encode(
+          '${jsonEncode(encodeOutcome(outcome, encodeWebResponse))}\n',
+        ),
+      );
+      await socket.close();
+    } on SocketException {
+      socket.destroy();
+    }
+  }
+
+  Future<Outcome<WebResponse>> _carryOut(Request request) async {
     final url = _url(request);
     if (url == null) return Refused('path leaves ${request.origin}');
 
