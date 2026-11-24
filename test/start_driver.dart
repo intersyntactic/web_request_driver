@@ -45,12 +45,23 @@ final class CallerOverSocket implements CarriesOutWebRequests {
       s.add(utf8.encode(jsonEncode(encodeGrantedRequest(request))));
       await s.close();
       final answer = await utf8.decoder.bind(s).join();
-      if (answer.isEmpty) return const NothingRan('refused caller');
+      if (answer.isEmpty) throw const NoAnswer('closed unanswered');
       return decodeOutcome(jsonDecode(answer), decodeWebResponse);
     } on SocketException catch (e) {
-      return StoppedPartway(why: e.message, done: null);
+      throw NoAnswer(e.message);
     }
   }
+}
+
+/// The driver ended the connection without an answer. That is no
+/// [Outcome] at all: the caller can't know how far the request got.
+final class NoAnswer implements Exception {
+  const NoAnswer(this.why);
+
+  final String why;
+
+  @override
+  String toString() => 'no answer: $why';
 }
 
 /// Starts a [WebRequestDriver] for this process's user on a fresh socket,

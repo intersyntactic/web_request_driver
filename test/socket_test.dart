@@ -129,11 +129,13 @@ void main() {
   test('answers no one but its caller, and carries out nothing', () async {
     final lines = <String>[];
     await start(caller: UserId.parse(myUid + 1), log: lines.add);
-    final out = await CallerOverSocket(socket)
-        .carryOutWebRequest(grantedWholeSite(ProposedRequest(api)));
-    // The socket is closed unanswered, which a caller may see as a reset;
-    // that nothing was sent is what shows nothing ran.
-    expect(out, isNot(isA<Ran<WebResponse>>()));
+    // Closed unanswered, so the caller hears no outcome; that nothing was
+    // sent is what shows nothing ran.
+    await expectLater(
+      CallerOverSocket(socket)
+          .carryOutWebRequest(grantedWholeSite(ProposedRequest(api))),
+      throwsA(isA<NoAnswer>()),
+    );
     expect(sent, isEmpty);
     expect(lines, [
       'refused a caller: not allowed: user $myUid is not one of {${myUid + 1}}',
@@ -146,9 +148,11 @@ void main() {
       log: lines.add,
       socketUserReader: SocketUserReader(kernel: Kernel.other),
     );
-    final out = await CallerOverSocket(socket)
-        .carryOutWebRequest(grantedWholeSite(ProposedRequest(api)));
-    expect(out, isNot(isA<Ran<WebResponse>>()));
+    await expectLater(
+      CallerOverSocket(socket)
+          .carryOutWebRequest(grantedWholeSite(ProposedRequest(api))),
+      throwsA(isA<NoAnswer>()),
+    );
     expect(sent, isEmpty);
     expect(lines, [
       'refused a caller: unread: '
