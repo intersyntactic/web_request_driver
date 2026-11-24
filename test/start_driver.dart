@@ -45,10 +45,10 @@ final class CallerOverSocket implements CarriesOutWebRequests {
       s.add(utf8.encode(jsonEncode(encodeGrantedRequest(request))));
       await s.close();
       final answer = await utf8.decoder.bind(s).join();
-      if (answer.isEmpty) return const Refused('refused caller');
+      if (answer.isEmpty) return const NothingRan('refused caller');
       return decodeOutcome(jsonDecode(answer), decodeWebResponse);
     } on SocketException catch (e) {
-      return Refused(e.message);
+      return StoppedPartway(why: e.message, done: null);
     }
   }
 }

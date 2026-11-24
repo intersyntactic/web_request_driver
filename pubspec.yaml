@@ -3,14 +3,14 @@ description: >-
   intersyntactic's web request driver: sends requests out of the home under the
   person's sign-ins, holding each sign-in's secret so neither a tool nor the
   logbook ever sees it.
-version: 0.12.1
+version: 0.13.0
 repository: https://github.com/intersyntactic/web_request_driver
 
 environment:
   sdk: ^3.13.0
 
 dependencies:
-  is_effects: ^0.14.3
+  is_effects: ^0.15.0
   is_unix_socket_user_check: ^0.2.1
 
 dev_dependencies:
