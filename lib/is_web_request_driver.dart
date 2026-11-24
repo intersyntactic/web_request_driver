@@ -4,7 +4,7 @@
 library;
 
 export 'package:is_unix_socket_user_check/is_unix_socket_user_check.dart'
-    show UserId;
+    show Kernel, SocketUserReader, UserId;
 
 export 'src/credential.dart'
     show BearerToken, ClientCredentials, Credential, ReplyField;
