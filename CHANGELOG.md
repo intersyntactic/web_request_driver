@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.12.0
+
+- is_unix_socket_user_check ^0.2.0. A refused caller now leaves one log
+  line before its socket closes, saying why: `refused a caller: not
+  allowed: user 1001 is not one of {998}`, or `refused a caller: unread:
+  ` and why the kernel did not say who it is, with the OS error when
+  reading it failed. Still refused, still closed.
+- `WebRequestDriver.start` takes a `socketUserReader`, the running
+  kernel's by default. `SocketUserReader` and `Kernel` are exported.
+
 ## 0.11.2
 
 - is_effects ^0.14.3, locked at 0.14.3, so a build of this driver

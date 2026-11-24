@@ -57,12 +57,18 @@ void main() {
     );
   }
 
-  Future<void> start({UserId? caller}) async {
+  Future<void> start({
+    UserId? caller,
+    void Function(String line)? log,
+    SocketUserReader? socketUserReader,
+  }) async {
     final driver = await WebRequestDriver.start(
       {bot: token},
       caller: caller ?? me,
       socket: socket,
       http: echo,
+      log: log,
+      socketUserReader: socketUserReader,
     );
     addTearDown(driver.close);
   }
@@ -118,11 +124,31 @@ void main() {
   });
 
   test('answers no one but its caller, and carries out nothing', () async {
-    await start(caller: UserId.parse(myUid + 1));
+    final lines = <String>[];
+    await start(caller: UserId.parse(myUid + 1), log: lines.add);
     final out = await CallerOverSocket(socket)
         .carryOutWebRequest(grantedWholeSite(ProposedRequest(api)));
     expect(out, isA<Refused>());
     expect(sent, isEmpty);
+    expect(lines, [
+      'refused a caller: not allowed: user $myUid is not one of {${myUid + 1}}',
+    ]);
+  });
+
+  test('refuses a caller whose user it cannot read, and says why', () async {
+    final lines = <String>[];
+    await start(
+      log: lines.add,
+      socketUserReader: SocketUserReader(kernel: Kernel.other),
+    );
+    final out = await CallerOverSocket(socket)
+        .carryOutWebRequest(grantedWholeSite(ProposedRequest(api)));
+    expect(out, isA<Refused>());
+    expect(sent, isEmpty);
+    expect(lines, [
+      'refused a caller: unread: '
+          'peer credentials are only read on Linux and macOS',
+    ]);
   });
 
   test('refuses a request carrying a credential', () async {

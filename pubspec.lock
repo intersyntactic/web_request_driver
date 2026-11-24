@@ -173,10 +173,10 @@ packages:
     dependency: "direct main"
     description:
       name: is_unix_socket_user_check
-      sha256: "85e99f8a46d1c6e3d697e57ac62c5b784f257f283c1ff56f627c70926e976b9b"
+      sha256: "6fb69358c2d4a9b49765ed94e4de84b109f659e5e00de111ec9ca3e7054105db"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.0"
+    version: "0.2.0"
   is_web_address_vocabulary:
     dependency: transitive
     description:

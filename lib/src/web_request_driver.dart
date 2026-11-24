@@ -49,8 +49,8 @@ final class WebRequestDriver {
 
   /// Listens on [socket], carrying out requests under [signIns] for the
   /// user [caller] alone. A socket file nothing listens on is replaced.
-  /// [http], [now] and [log] are `dart:io`'s, the clock's and silence by
-  /// default.
+  /// [http], [now], [log] and [socketUserReader] are `dart:io`'s, the
+  /// clock's, silence and the running kernel's by default.
   static Future<WebRequestDriver> start(
     Map<SignIn, Credential> signIns, {
     required UserId caller,
@@ -58,6 +58,7 @@ final class WebRequestDriver {
     HttpCall? http,
     DateTime Function()? now,
     void Function(String line)? log,
+    SocketUserReader? socketUserReader,
     int maxBodyBytes = defaultMaxBodyBytes,
   }) async {
     final driver = WebRequestDriver._(
@@ -66,7 +67,7 @@ final class WebRequestDriver {
       http ?? httpCall,
       now ?? DateTime.now,
       log ?? _silent,
-      SocketUserCheck.only(caller),
+      SocketUserCheck.only(caller, reader: socketUserReader),
       socket,
       await _bind(socket),
     );
@@ -133,7 +134,9 @@ final class WebRequestDriver {
 
   Future<void> _serve(Socket socket) async {
     try {
-      if (!_socketUserCheck.allows(socket)) {
+      final verdict = _socketUserCheck.decide(socket);
+      if (verdict is! Allowed) {
+        _log('refused a caller: $verdict');
         socket.destroy();
         return;
       }
