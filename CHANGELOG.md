@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.13.0
+
+- **Breaking:** is_effects ^0.15.0. A request that is not carried out is
+  `NothingRan` or `StoppedPartway`, never `Refused`, and the answer's JSON
+  kind is `nothingRan` or `stoppedPartway`. An airlock before is_effects
+  0.15 can't read either, so deploy this only after the airlock moves.
+- `NothingRan` when the request never left the driver: not a request, too
+  large, a path off its site, a sign-in it doesn't hold or that isn't for
+  the site or doesn't reach the path, or a token the sign-in service would
+  not issue.
+- `StoppedPartway` once the request was sent, whatever stopped it: a
+  dropped connection or a timeout, a redirect it won't follow, or a body
+  it can't keep. `done` is the last answer that arrived: the status and
+  created id when the body couldn't be kept, the redirect when a hop was
+  refused, and null when no answer arrived at all.
+
 ## 0.12.1
 
 - is_unix_socket_user_check ^0.2.1, whose refusal reasons never contain

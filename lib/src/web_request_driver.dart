@@ -83,7 +83,7 @@ final class WebRequestDriver {
   final ServerSocket _server;
 
   /// The largest body read from a site. A body kept for the logbook that is
-  /// larger is [Refused].
+  /// larger is [StoppedPartway].
   final int maxBodyBytes;
 
   static const defaultMaxBodyBytes = 16 * 1024 * 1024;
@@ -91,7 +91,7 @@ final class WebRequestDriver {
   /// A request is a web request's headers and body, so far smaller than this.
   static const maxRequest = 1 << 20;
 
-  /// Redirects followed for one request; one more is [Refused].
+  /// Redirects followed for one request; one more is [StoppedPartway].
   static const maxRedirects = 3;
 
   /// A token reply is a few hundred bytes; anything near this is not one.
@@ -151,7 +151,7 @@ final class WebRequestDriver {
       }
       final Outcome<WebResponse> outcome;
       if (tooLarge) {
-        outcome = const Refused('request too large');
+        outcome = const NothingRan('request too large');
       } else {
         final GrantedRequest decoded;
         try {
@@ -159,7 +159,7 @@ final class WebRequestDriver {
             jsonDecode(utf8.decode(request.takeBytes(), allowMalformed: true)),
           );
         } on FormatException catch (e) {
-          await _answer(socket, Refused('not a request: ${e.message}'));
+          await _answer(socket, NothingRan('not a request: ${e.message}'));
           return;
         }
         outcome = await _carryOut(decoded);
@@ -189,21 +189,21 @@ final class WebRequestDriver {
   Future<Outcome<WebResponse>> _carryOut(GrantedRequest granted) async {
     final request = granted.proposed;
     final url = _url(request);
-    if (url == null) return Refused('path leaves ${request.origin}');
+    if (url == null) return NothingRan('path leaves ${request.origin}');
 
     final signIn = request.signIn;
     final credential = signIn == null ? null : _signIns[signIn];
     if (signIn != null && credential == null) {
-      return Refused('no sign-in $signIn');
+      return NothingRan('no sign-in $signIn');
     }
     // The airlock decides who may go where by name alone; only here is it
     // known that a secret would ride along to a site that never issued it.
     if (credential != null && !credential.origins.contains(request.origin)) {
-      return Refused('$signIn is not for ${request.origin}');
+      return NothingRan('$signIn is not for ${request.origin}');
     }
     if (credential != null &&
         !credential.reaches(request.origin, request.path)) {
-      return Refused(
+      return NothingRan(
         '$signIn reaches only ${_pins(credential, request.origin)} '
         'on ${request.origin}',
       );
@@ -211,11 +211,13 @@ final class WebRequestDriver {
 
     final signedHeaders = {...request.headers};
     if (credential != null) {
-      switch (await _authorization(signIn!, credential)) {
-        case Ran(output: final value):
-          signedHeaders['authorization'] = value;
-        case final Refused refused:
-          return refused;
+      try {
+        signedHeaders['authorization'] = await _authorization(
+          signIn!,
+          credential,
+        );
+      } on _TokenRefused catch (e) {
+        return NothingRan('$signIn: $e');
       }
     }
 
@@ -226,6 +228,9 @@ final class WebRequestDriver {
     final method = request.method.name.toUpperCase();
     final redirects = <RedirectedTo>[];
     var at = url;
+    // From here on the request has gone out, so a stop is partway: the
+    // last answer that arrived is what was done, and none is not knowing.
+    WebResponse? answered;
     HttpResult r;
     while (true) {
       final home = _origin(at) == request.origin;
@@ -239,9 +244,12 @@ final class WebRequestDriver {
         );
       } on IOException catch (e) {
         _log('$method ${redirects.lastOrNull ?? url}: ${_failure(e)}');
-        return Refused('${_origin(at)}: ${_failure(e)}');
+        return StoppedPartway(
+          why: '${_origin(at)}: ${_failure(e)}',
+          done: answered,
+        );
       } on TimeoutException {
-        return Refused('${_origin(at)}: timed out');
+        return StoppedPartway(why: '${_origin(at)}: timed out', done: answered);
       }
       final location = r.location;
       if (request.method != Method.get ||
@@ -249,13 +257,20 @@ final class WebRequestDriver {
           location == null) {
         break;
       }
+      answered = WebResponse(
+        status: r.status,
+        redirects: List.unmodifiable(redirects),
+      );
       final next = at.resolveUri(location);
       final hop = RedirectedTo.of(next);
       final origin = _origin(next);
       if (hop == null || origin == null || !mayReach.contains(origin)) {
-        return Refused(
-          '${request.origin} redirected to ${origin ?? 'a non-web address'}'
-          '${signIn == null ? '' : ', which $signIn is not for'}',
+        return StoppedPartway(
+          why:
+              '${request.origin} redirected to '
+              '${origin ?? 'a non-web address'}'
+              '${signIn == null ? '' : ', which $signIn is not for'}',
+          done: answered,
         );
       }
       // A hop's path is checked without its query, which `covers` ignores
@@ -265,20 +280,26 @@ final class WebRequestDriver {
       final grantedPrefix = granted.grantedPathPrefix;
       if (origin == request.origin &&
           (path == null || !grantedPrefix.covers(path))) {
-        return Refused('${request.origin} redirected out of $grantedPrefix');
+        return StoppedPartway(
+          why: '${request.origin} redirected out of $grantedPrefix',
+          done: answered,
+        );
       }
       // On any pinned site a hop stays where the sign-in reaches.
       if (credential != null &&
           credential.pathPrefixes.containsKey(origin) &&
           (path == null || !credential.reaches(origin, path))) {
-        return Refused(
-          '${request.origin} redirected out of '
-          '${_pins(credential, origin)} on $origin',
+        return StoppedPartway(
+          why:
+              '${request.origin} redirected out of '
+              '${_pins(credential, origin)} on $origin',
+          done: answered,
         );
       }
       if (redirects.length == maxRedirects) {
-        return Refused(
-          '${request.origin} redirected more than $maxRedirects times',
+        return StoppedPartway(
+          why: '${request.origin} redirected more than $maxRedirects times',
+          done: answered,
         );
       }
       redirects.add(hop);
@@ -306,24 +327,24 @@ final class WebRequestDriver {
         '${r.status}${created == null ? '' : ' created $created'}',
       );
     }
-    final ResponseBody body;
-    switch (_keep(ok ? request.keep : BodyToKeep.none, bytes)) {
-      case Ran(output: final kept):
-        body = kept;
-      case Refused(:final why):
-        return Refused('${redirects.lastOrNull ?? request.origin}: $why');
-    }
-    return Ran(
-      WebResponse(
-        status: r.status,
-        created: created,
-        refusedBecause: ok || text == null
-            ? null
-            : _word(credential?.refusedBecause?.read(text)),
-        body: body,
-        redirects: List.unmodifiable(redirects),
-      ),
+    WebResponse response(ResponseBody body) => WebResponse(
+      status: r.status,
+      created: created,
+      refusedBecause: ok || text == null
+          ? null
+          : _word(credential?.refusedBecause?.read(text)),
+      body: body,
+      redirects: List.unmodifiable(redirects),
     );
+    // A body that can't be kept still leaves the status and created id the
+    // site answered with, so those are what was done.
+    return switch (_keep(ok ? request.keep : BodyToKeep.none, bytes)) {
+      Ran(output: final kept) => Ran(response(kept)),
+      NothingRan(:final why) || StoppedPartway(:final why) => StoppedPartway(
+        why: '${redirects.lastOrNull ?? request.origin}: $why',
+        done: response(const NoBody()),
+      ),
+    };
   }
 
   static const _redirects = {301, 302, 303, 307, 308};
@@ -333,7 +354,10 @@ final class WebRequestDriver {
   Outcome<ResponseBody> _keep(BodyToKeep keep, Uint8List? bytes) =>
       switch ((keep, bytes)) {
         (BodyToKeep.none, _) => const Ran(NoBody()),
-        (_, null) => Refused('body over $maxBodyBytes bytes'),
+        (_, null) => StoppedPartway(
+          why: 'body over $maxBodyBytes bytes',
+          done: null,
+        ),
         (BodyToKeep.text, final kept?) => _utf8(kept),
         (BodyToKeep.bytes, final kept?) => Ran(BytesBody(kept)),
       };
@@ -349,7 +373,7 @@ final class WebRequestDriver {
     try {
       return Ran(TextBody('${bom ? '\u{feff}' : ''}${utf8.decode(bytes)}'));
     } on FormatException {
-      return const Refused('body is not UTF-8');
+      return const StoppedPartway(why: 'body is not UTF-8', done: null);
     }
   }
 
@@ -371,28 +395,27 @@ final class WebRequestDriver {
     Uri(scheme: url.scheme, host: url.host, port: url.port).toString(),
   );
 
-  Future<Outcome<String>> _authorization(
-    SignIn signIn,
-    Credential credential,
-  ) async {
+  /// The authorization header's value for [credential]; throws
+  /// [_TokenRefused] when the sign-in service will not issue a token.
+  Future<String> _authorization(SignIn signIn, Credential credential) async {
     switch (credential) {
       case BearerToken(:final authorization):
-        return Ran(authorization);
+        return authorization;
       case ClientCredentials():
         final cached = _tokens[signIn];
         if (cached != null) {
           final token = await cached;
-          if (_now().isBefore(token.until)) return Ran('Bearer ${token.value}');
+          if (_now().isBefore(token.until)) return 'Bearer ${token.value}';
           if (identical(_tokens[signIn], cached)) _tokens.remove(signIn);
         }
         final fetching = _tokens[signIn] ??= _clientCredentialsToken(
           credential,
         );
         try {
-          return Ran('Bearer ${(await fetching).value}');
-        } on _TokenRefused catch (e) {
+          return 'Bearer ${(await fetching).value}';
+        } on _TokenRefused {
           if (identical(_tokens[signIn], fetching)) _tokens.remove(signIn);
-          return Refused('$signIn: $e');
+          rethrow;
         }
     }
   }

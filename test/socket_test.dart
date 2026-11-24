@@ -16,6 +16,9 @@ final token = BearerToken(
   refusedBecause: ReplyField.parse('error.code'),
 );
 
+/// How a refusal before anything was sent starts on the wire.
+const nothingRan = '{"kind":"nothingRan"';
+
 typedef Sent = ({
   String method,
   Uri url,
@@ -126,9 +129,13 @@ void main() {
   test('answers no one but its caller, and carries out nothing', () async {
     final lines = <String>[];
     await start(caller: UserId.parse(myUid + 1), log: lines.add);
-    final out = await CallerOverSocket(socket)
-        .carryOutWebRequest(grantedWholeSite(ProposedRequest(api)));
-    expect(out, isA<Refused>());
+    // Closed unanswered, so the caller hears no outcome; that nothing was
+    // sent is what shows nothing ran.
+    await expectLater(
+      CallerOverSocket(socket)
+          .carryOutWebRequest(grantedWholeSite(ProposedRequest(api))),
+      throwsA(isA<NoAnswer>()),
+    );
     expect(sent, isEmpty);
     expect(lines, [
       'refused a caller: not allowed: user $myUid is not one of {${myUid + 1}}',
@@ -141,9 +148,11 @@ void main() {
       log: lines.add,
       socketUserReader: SocketUserReader(kernel: Kernel.other),
     );
-    final out = await CallerOverSocket(socket)
-        .carryOutWebRequest(grantedWholeSite(ProposedRequest(api)));
-    expect(out, isA<Refused>());
+    await expectLater(
+      CallerOverSocket(socket)
+          .carryOutWebRequest(grantedWholeSite(ProposedRequest(api))),
+      throwsA(isA<NoAnswer>()),
+    );
     expect(sent, isEmpty);
     expect(lines, [
       'refused a caller: unread: '
@@ -162,7 +171,7 @@ void main() {
         'headers': {'Authorization': 'Bearer stolen'},
       }),
     );
-    expect(answer, contains('refused'));
+    expect(answer, startsWith(nothingRan));
     expect(answer, contains('headers'));
     expect(sent, isEmpty);
   });
@@ -179,6 +188,7 @@ void main() {
         'headers': <String, String>{},
       }),
     );
+    expect(answer, startsWith(nothingRan));
     expect(answer, contains('grantedPathPrefix: missing'));
     expect(sent, isEmpty);
   });
@@ -194,6 +204,7 @@ void main() {
         'headers': <String, String>{},
       }),
     );
+    expect(answer, startsWith(nothingRan));
     expect(answer, contains('not under'));
     expect(sent, isEmpty);
   });
@@ -201,7 +212,7 @@ void main() {
   test('refuses what is not a request', () async {
     await start();
     for (final bad in ['nope', '{}', '{"origin":"ftp://x","method":"get"}']) {
-      expect(await raw(bad), contains('refused'));
+      expect(await raw(bad), startsWith(nothingRan));
     }
     expect(sent, isEmpty);
   });
@@ -221,7 +232,7 @@ void main() {
           'headers': <String, String>{},
         }),
       );
-      expect(answer, contains('refused'));
+      expect(answer, startsWith(nothingRan));
     }
     expect(sent, isEmpty);
   });
@@ -229,6 +240,7 @@ void main() {
   test('refuses a request too large to be one', () async {
     await start();
     final answer = await raw('x' * (WebRequestDriver.maxRequest + 1));
+    expect(answer, startsWith(nothingRan));
     expect(answer, contains('request too large'));
     expect(sent, isEmpty);
   });

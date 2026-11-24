@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -102,7 +103,7 @@ void main() {
     final other = grantedWholeSite(
       ProposedRequest(Origin.parse('https://example.com')!, signIn: bot),
     );
-    expect(await (await driver()).carryOutWebRequest(other), isA<Refused>());
+    expect(await (await driver()).carryOutWebRequest(other), isA<NothingRan>());
     expect(calls, isEmpty);
   });
 
@@ -111,7 +112,7 @@ void main() {
       await (await driver()).carryOutWebRequest(
         post(signIn: SignIn.parse('nobody')!),
       ),
-      isA<Refused>(),
+      isA<NothingRan>(),
     );
     expect(calls, isEmpty);
   });
@@ -176,7 +177,7 @@ void main() {
     );
     final out = await d.carryOutWebRequest(post(signIn: bot));
     // OAuth's own error code for the logbook; Microsoft's number only logged.
-    expect((out as Refused).why, contains('invalid_client'));
+    expect((out as NothingRan).why, contains('invalid_client'));
     expect(out.why, isNot(contains('7000215')));
     expect(out.why, isNot(contains('s3cret')));
     expect(log.single, contains('7000215'));
@@ -210,7 +211,7 @@ void main() {
       bot: app,
     }, http: (_, _, _, _, _) async => answer(401, '{}'));
     final out = await d.carryOutWebRequest(post(signIn: bot));
-    expect((out as Refused).why, isNot(contains('s3cret')));
+    expect((out as NothingRan).why, isNot(contains('s3cret')));
   });
 
   test('a token request that drops never names its address', () async {
@@ -228,9 +229,34 @@ void main() {
           throw HttpException('Connection reset', uri: url),
     );
     final out = await d.carryOutWebRequest(post(signIn: bot));
-    final why = (out as Refused).why;
+    // No token, so the request itself was never sent.
+    final why = (out as NothingRan).why;
     expect(why, contains('Connection reset'));
     expect(why, isNot(contains('SECRET')));
+  });
+
+  test('a request that drops may have reached the site', () async {
+    final d = await startDriver(
+      {},
+      http: (_, url, _, _, _) async =>
+          throw HttpException('Connection reset', uri: url),
+    );
+    final out = await d.carryOutWebRequest(post());
+    final stopped = out as StoppedPartway<WebResponse>;
+    expect(stopped.why, contains('Connection reset'));
+    // No answer arrived, so what the POST did is not known.
+    expect(stopped.done, isNull);
+  });
+
+  test('a request that times out may have reached the site', () async {
+    final d = await startDriver(
+      {},
+      http: (_, _, _, _, _) async => throw TimeoutException('no progress'),
+    );
+    final out = await d.carryOutWebRequest(post());
+    final stopped = out as StoppedPartway<WebResponse>;
+    expect(stopped.why, contains('timed out'));
+    expect(stopped.done, isNull);
   });
 
   group('bodies and redirects', () {
@@ -291,6 +317,9 @@ void main() {
     Future<WebResponse> ran(Future<Outcome<WebResponse>> out) async =>
         ((await out) as Ran<WebResponse>).output;
 
+    StoppedPartway<WebResponse> partway(Outcome<WebResponse> out) =>
+        out as StoppedPartway<WebResponse>;
+
     setUp(() {
       site = {};
       drops = {};
@@ -347,14 +376,21 @@ void main() {
         location: null,
       );
       final out = await (await reading()).carryOutWebRequest(get('/a'));
-      expect((out as Refused).why, contains('not UTF-8'));
+      // The site answered, so what it answered is what was done.
+      final stopped = partway(out);
+      expect(stopped.why, contains('not UTF-8'));
+      expect(stopped.done?.status, 200);
+      expect(stopped.done?.body, isA<NoBody>());
     });
 
     test('refuses to keep a body over the limit', () async {
       site['GET https://api.example/a'] = answer(200, 'x' * 11);
       final out = await (await reading(maxBodyBytes: 10))
           .carryOutWebRequest(get('/a', keep: BodyToKeep.bytes));
-      expect((out as Refused).why, contains('over 10 bytes'));
+      final stopped = partway(out);
+      expect(stopped.why, contains('over 10 bytes'));
+      expect(stopped.done?.status, 200);
+      expect(stopped.done?.body, isA<NoBody>());
     });
 
     test('a large body it was not asked to keep still ran', () async {
@@ -406,7 +442,11 @@ void main() {
     test('refuses a redirect to a site the sign-in is not for', () async {
       site['GET https://api.example/a'] = redirect('https://evil.example/x');
       final out = await (await reading()).carryOutWebRequest(get('/a'));
-      expect((out as Refused).why, contains('https://evil.example'));
+      // The redirect itself is the answer that arrived.
+      final stopped = partway(out);
+      expect(stopped.why, contains('https://evil.example'));
+      expect(stopped.done?.status, 302);
+      expect(stopped.done?.redirects, isEmpty);
       expect(calls.where((c) => c.url.host == 'evil.example'), isEmpty);
     });
 
@@ -415,7 +455,7 @@ void main() {
       final out = await (await reading()).carryOutWebRequest(
         grantedWholeSite(ProposedRequest(api, path: WebPath.parse('/a')!)),
       );
-      expect(out, isA<Refused>());
+      expect(out, isA<StoppedPartway<WebResponse>>());
       expect(calls.where((c) => c.url.host == 'files.example'), isEmpty);
     });
 
@@ -430,7 +470,10 @@ void main() {
       }
       site['GET https://api.example/e'] = answer(200, 'too far');
       final out = await (await reading()).carryOutWebRequest(get('/a'));
-      expect((out as Refused).why, contains('more than 3'));
+      // Three hops were followed before the fourth answer arrived.
+      final stopped = partway(out);
+      expect(stopped.why, contains('more than 3'));
+      expect(stopped.done?.redirects, hasLength(3));
     });
 
     group('a redirect on the request\'s own site stays under its grant', () {
@@ -462,7 +505,7 @@ void main() {
             '/v1.0/drives/other/x?tempauth=SECRET',
           );
           final out = await granted();
-          final why = (out as Refused).why;
+          final why = partway(out).why;
           expect(why, contains('https://api.example'));
           expect(why, contains('/v1.0/drives/d/'));
           expect(why, isNot(contains('SECRET')));
@@ -476,7 +519,7 @@ void main() {
         site['GET https://api.example$content'] = redirect(
           '/v1.0/drives/d/%2e%2e/%2E%2E/other/x',
         );
-        expect(await granted(), isA<Refused>());
+        expect(await granted(), isA<StoppedPartway<WebResponse>>());
         expectNeverCalled('/v1.0/other/x');
       });
 
@@ -484,7 +527,7 @@ void main() {
         site['GET https://api.example$content'] = redirect(
           '/v1.0/drives/d/%252e%252e/x',
         );
-        expect(await granted(), isA<Refused>());
+        expect(await granted(), isA<StoppedPartway<WebResponse>>());
         expectNeverCalled('/v1.0/drives/d/%252e%252e/x');
       });
 
@@ -504,7 +547,7 @@ void main() {
         site['GET https://files.example/f'] = redirect(
           'https://api.example/v1.0/drives/other/x',
         );
-        expect(await granted(), isA<Refused>());
+        expect(await granted(), isA<StoppedPartway<WebResponse>>());
         expectNeverCalled('/v1.0/drives/other/x');
       });
 
@@ -534,7 +577,7 @@ void main() {
         site['GET https://api.example$content'] = redirect(
           'https://api.example',
         );
-        expect(await granted(), isA<Refused>());
+        expect(await granted(), isA<StoppedPartway<WebResponse>>());
       });
     });
 
@@ -579,7 +622,10 @@ void main() {
         );
         drops.add('GET https://files.example/f?tempauth=SECRET');
         final out = await (await reading()).carryOutWebRequest(get('/a'));
-        final why = (out as Refused).why;
+        // The connection closed on the second hop, after the first answered.
+        final stopped = partway(out);
+        expect(stopped.done?.status, 302);
+        final why = stopped.why;
         expect(why, contains('https://files.example'));
         expect(why, contains('Connection closed'));
         expect(why, isNot(contains('SECRET')));
@@ -793,7 +839,7 @@ void main() {
     for (final path in ['/v27.0/999/messages', '/v27.0/123']) {
       test('refuses $path outside its pin, unsent', () async {
         final out = await (await sending()).carryOutWebRequest(to(path));
-        final why = (out as Refused).why;
+        final why = (out as NothingRan).why;
         expect(why, contains('/v27.0/123/'));
         expect(why, isNot(contains('t0p-secret')));
         expect(calls, isEmpty);
@@ -809,7 +855,7 @@ void main() {
       final out = await (await sending()).carryOutWebRequest(
         to('/v27.0/123/media', method: Method.get),
       );
-      expect((out as Refused).why, isNot(contains('leak')));
+      expect((out as StoppedPartway<WebResponse>).why, isNot(contains('leak')));
       expect(calls.where((c) => c.url.path == '/v27.0/999/x'), isEmpty);
     });
 

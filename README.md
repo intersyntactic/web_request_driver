@@ -35,7 +35,7 @@ Teams, Slack or GitHub is a file, not a change to this package.
    The logbook keeps what it's given for good, so it gets **a word, not the
    body**. `WebResponse.refusedBecause` is the one field the sign-in names as its
    reason, such as `error.code` → `ConversationNotFound`. A refused token's
-   `Refused` reason carries OAuth's own `error` code, such as
+   `NothingRan` reason carries OAuth's own `error` code, such as
    `invalid_client`. The whole body goes only to the driver's log, for
    whoever runs it. The service logs to stdout, which is the journal on the
    box, and bodies are clipped to 2,000 characters. A successful reply gets
@@ -45,7 +45,8 @@ Teams, Slack or GitHub is a file, not a change to this package.
 6. **It keeps a body only when asked.** `ProposedRequest.keep` says `none`, `text`
    or `bytes`, and only a 2xx body is kept. A body over `maxBodyBytes`
    (16 MiB unless the program sets it) is never read past the limit, and
-   asking to keep one is `Refused`, as is asking for text that isn't UTF-8.
+   asking to keep one is `StoppedPartway`, as is asking for text that isn't
+   UTF-8.
 7. **It follows a redirect only where the sign-in goes.** Only a GET's
    redirect is followed, since a GET changes nothing; any other method gets
    the redirect as its answer. The next site must be one in the sign-in's
@@ -57,16 +58,22 @@ Teams, Slack or GitHub is a file, not a change to this package.
    which covers every path on it. Every hop is in
    `WebResponse.redirects` as its site and path, without the query, since
    a pre-authenticated download address carries its token there. Anything
-   else is `Refused`, and nothing is sent to the site it pointed at.
+   else is `StoppedPartway`, and nothing is sent to the site it pointed at.
 
 `Ran(WebResponse)` means the request left the home and got a reply, whatever its
-status. `Refused` means nothing reached the destination: an unknown sign-in,
-a foreign origin or path, a token the sign-in service wouldn't issue, or a
-network failure before any reply. The exceptions are a body that can't be
-kept as asked and a GET's redirect that can't be followed: the site
-answered, but nothing it answered is kept.
+status. Anything else splits on whether the request was sent:
 
-A `Refused` reason can leave the machine, shown to the person who asked, so
+- `NothingRan` means it never left the driver: an unknown sign-in, a
+  foreign origin or path, or a token the sign-in service wouldn't issue. It
+  is safe to retry.
+- `StoppedPartway` means it was sent and stopped before a reply could be
+  kept: the connection dropped or timed out, a GET's redirect couldn't be
+  followed, or the body couldn't be kept as asked. It is never safe to
+  retry, since a POST may already have done its work. `done` is the last
+  answer that arrived (its status and created id, without a body), or
+  null when none did.
+
+A reason can leave the machine, shown to the person who asked, so
 it names a site but never an address's query or anything the site sent: a
 network failure gives its site and what failed (`Connection closed before
 full header was received`), not the address it failed at.
@@ -152,12 +159,13 @@ its side. The service answers one line and closes. Both are is_effects' own JSON
 (`encodeGrantedRequest`, `encodeOutcome` with `encodeWebResponse`), shared
 with the airlock, so neither side keeps a codec of its own. A request
 with no `grantedPathPrefix`, or one that doesn't cover its path, is
-refused:
+refused before anything is sent:
 
 ```
 → {"origin":"https://…","method":"post","path":"/…","grantedPathPrefix":"/…/","signIn":"cam-teams","headers":{…},"body":"…"}
 ← {"kind":"ran","output":{"status":201,"created":"…","refusedBecause":null}}
-← {"kind":"refused","why":"…"}
+← {"kind":"nothingRan","why":"…"}
+← {"kind":"stoppedPartway","why":"…","done":{"status":201,…}}
 ```
 
 A web request that got a 4xx reply still `ran`. A path that would name
