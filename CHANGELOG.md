@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.1
+
+- is_unix_socket_user_check ^0.2.1, whose refusal reasons never contain
+  a line break, so a refused caller's log line stays one line even when
+  the OS error's message spans two.
+
 ## 0.12.0
 
 - is_unix_socket_user_check ^0.2.0. A refused caller now leaves one log
