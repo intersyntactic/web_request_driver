@@ -15,7 +15,7 @@ library;
 import 'dart:async';
 import 'dart:io';
 
-import 'package:is_effects/is_effects.dart';
+import 'package:is_sign_in_vocabulary/is_sign_in_vocabulary.dart';
 import 'package:is_web_request_driver/is_web_request_driver.dart';
 
 Future<void> main() async {

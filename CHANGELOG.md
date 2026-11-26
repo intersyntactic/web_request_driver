@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.14.0
+
+- is_effects ^0.17.0. Its wire format is unchanged from 0.15, so this
+  driver and a 0.15 airlock still read each other.
+- is_effects no longer re-exports `SignIn`, `Origin`, `WebPath` or
+  `PathPrefix`, so this package depends on `is_sign_in_vocabulary` ^0.1.0
+  and `is_web_address_vocabulary` ^0.1.2 directly. A program that names
+  those types imports them from there.
+- A redirect to a bare site is read through `WebPath.parse`, which since
+  is_web_address_vocabulary 0.1.2 gives the root for an empty path.
+
 ## 0.13.0
 
 - **Breaking:** is_effects ^0.15.0. A request that is not carried out is

@@ -4,7 +4,9 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:is_effects/is_effects.dart';
+import 'package:is_sign_in_vocabulary/is_sign_in_vocabulary.dart';
 import 'package:is_unix_socket_user_check/is_unix_socket_user_check.dart';
+import 'package:is_web_address_vocabulary/is_web_address_vocabulary.dart';
 
 import 'credential.dart';
 
@@ -274,8 +276,8 @@ final class WebRequestDriver {
         );
       }
       // A hop's path is checked without its query, which `covers` ignores
-      // and may hold a token. A bare site is sent as its root.
-      final path = next.path.isEmpty ? WebPath.root : WebPath.parse(next.path);
+      // and may hold a token. A bare site parses as its root.
+      final path = WebPath.parse(next.path);
       // On its own site a hop stays under the grant.
       final grantedPrefix = granted.grantedPathPrefix;
       if (origin == request.origin &&

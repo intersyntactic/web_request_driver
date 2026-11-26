@@ -157,10 +157,10 @@ packages:
     dependency: "direct main"
     description:
       name: is_effects
-      sha256: bea7444e36b51bf749b2fa0fc3e69a7f9d49b657475e6be5f792d3d046c9175c
+      sha256: "2d1014ac6b36a7658910a0278b573277fe3cac4be0533e597734bd89c908727a"
       url: "https://pub.dev"
     source: hosted
-    version: "0.15.0"
+    version: "0.17.0"
   is_model_vocabulary:
     dependency: transitive
     description:
@@ -178,7 +178,7 @@ packages:
     source: hosted
     version: "0.1.0"
   is_sign_in_vocabulary:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: is_sign_in_vocabulary
       sha256: dfffa15f57f7fb076e89aca0d27e33def3b2786efa730ee0c6cbca5473aefb15
@@ -194,13 +194,13 @@ packages:
     source: hosted
     version: "0.2.1"
   is_web_address_vocabulary:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: is_web_address_vocabulary
-      sha256: "232241a06a2871213e110f52f01c8c68b6c98fdcdf00fcfb491c8e24d10d8dac"
+      sha256: a0b58425fc7eaf98e740cdfac614201fa426594fafdf198903e961f0ee4ed6dd
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.1"
+    version: "0.1.2"
   lints:
     dependency: "direct dev"
     description:
