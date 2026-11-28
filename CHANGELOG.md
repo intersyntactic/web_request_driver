@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.0
+
+- Depends on `is_web_request_vocabulary` ^0.1.0 and `is_outcome_vocabulary`
+  ^0.1.0 in place of is_effects, which is broken up into vocabularies. The
+  JSON is unchanged, so this driver and an airlock on is_effects 0.15 or
+  later still read each other.
+- A program that names `GrantedRequest`, `WebResponse` or `Outcome`
+  imports them from those vocabularies.
+
 ## 0.14.0
 
 - is_effects ^0.17.0. Its wire format is unchanged from 0.15, so this
