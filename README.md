@@ -3,7 +3,8 @@
 intersyntactic's web request driver: the service behind the airlock's
 `CarriesOutWebRequests` (from
 [is_effects](https://github.com/intersyntactic/effects)), making each
-`GrantedRequest` under one of the person's sign-ins. A tool describes the request
+`GrantedRequest` under one of its named sign-ins, each an identity of its own
+(`cam-teams` is CAM's app, not a person's account). A tool describes the request
 and names a sign-in such as `cam-teams`, and the airlock decides on it. The
 web request driver holds the secret and is the only piece that ever sees it.
 
