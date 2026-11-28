@@ -3,7 +3,7 @@ description: >-
   intersyntactic's web request driver: sends requests out of the home under its
   named sign-ins, holding each sign-in's secret so neither a tool nor the
   logbook ever sees it.
-version: 0.15.0
+version: 0.15.1
 repository: https://github.com/intersyntactic/web_request_driver
 
 environment:
@@ -14,7 +14,7 @@ dependencies:
   is_sign_in_vocabulary: ^0.1.0
   is_unix_socket_user_check: ^0.2.1
   is_web_address_vocabulary: ^0.1.2
-  is_web_request_vocabulary: ^0.1.0
+  is_web_request_vocabulary: ^0.1.1
 
 dev_dependencies:
   lints: ^6.1.0
