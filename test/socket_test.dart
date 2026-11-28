@@ -179,6 +179,24 @@ void main() {
     expect(sent, isEmpty);
   });
 
+  // HTTP sends one of two names that differ only in case, so the airlock
+  // could check one value while the other is sent.
+  test('refuses a request naming one header twice, ignoring case', () async {
+    await start();
+    final answer = await raw(
+      jsonEncode({
+        'origin': 'https://api.example',
+        'method': 'get',
+        'path': '',
+        'grantedPathPrefix': '/',
+        'headers': {'content-type': 'text/plain', 'Content-Type': 'text/html'},
+      }),
+    );
+    expect(answer, startsWith(nothingRan));
+    expect(answer, contains('already named'));
+    expect(sent, isEmpty);
+  });
+
   // A request with no grant is refused rather than read as `/`.
   test('refuses a request carrying no grant', () async {
     await start();

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.15.1
+
+- is_web_request_vocabulary ^0.1.1. A request naming one header twice,
+  ignoring case, is `NothingRan` before anything is sent. HTTP sends only
+  one of the two, so the airlock could have checked one value while the
+  other went out.
+
 ## 0.15.0
 
 - Depends on `is_web_request_vocabulary` ^0.1.0 and `is_outcome_vocabulary`
