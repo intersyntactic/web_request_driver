@@ -3,9 +3,10 @@
 intersyntactic's web request driver: the service behind the airlock's
 `CarriesOutWebRequests` (from
 [is_effects](https://github.com/intersyntactic/effects)), making each
-`GrantedRequest` under one of the person's sign-ins. A tool describes the request
-and names a sign-in such as `cam-teams`, and the airlock decides on it. The
-web request driver holds the secret and is the only piece that ever sees it.
+`GrantedRequest` under one of its named sign-ins, each an identity of its own.
+A tool describes the request and names a sign-in, and the airlock decides on
+it. The web request driver holds the secret and is the only piece that ever
+sees it.
 
 It knows nothing about any destination. A sign-in's kind is a way of
 proving who you are, such as OAuth 2 client credentials. Everything a
@@ -104,8 +105,8 @@ only by `origins`. A prefix ends in `/` and covers only longer paths. This
 bounds a broad token in the one place that holds it, whatever the request
 was granted.
 
-For example, `claude-whatsapp` is a Meta system user's token. It could send
-from every number on the business account, so it is pinned to one:
+For example, a Meta system user's token could send from every number on the
+business account, so its file pins it to one:
 
 ```json
 {
@@ -118,7 +119,7 @@ from every number on the business account, so it is pinned to one:
 }
 ```
 
-For example, `cam-teams` is a Teams bot. Its `created` is the new activity's
+For example, a Teams bot's `created` is the new activity's
 id, which a card press names later. Its `refusedBecause` is the Bot
 Framework error's code:
 
@@ -159,10 +160,10 @@ its side. The service answers one line and closes. Both are is_effects' own JSON
 (`encodeGrantedRequest`, `encodeOutcome` with `encodeWebResponse`), shared
 with the airlock, so neither side keeps a codec of its own. A request
 with no `grantedPathPrefix`, or one that doesn't cover its path, is
-refused before anything is sent:
+`nothingRan`:
 
 ```
-→ {"origin":"https://…","method":"post","path":"/…","grantedPathPrefix":"/…/","signIn":"cam-teams","headers":{…},"body":"…"}
+→ {"origin":"https://…","method":"post","path":"/…","grantedPathPrefix":"/…/","signIn":"…","headers":{…},"body":"…"}
 ← {"kind":"ran","output":{"status":201,"created":"…","refusedBecause":null}}
 ← {"kind":"nothingRan","why":"…"}
 ← {"kind":"stoppedPartway","why":"…","done":{"status":201,…}}

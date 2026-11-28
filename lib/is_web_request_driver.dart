@@ -1,6 +1,6 @@
-/// Carries out web requests under the person's sign-ins. Holds each
-/// sign-in's secret and applies it, so neither a tool nor the logbook ever sees
-/// one.
+/// Carries out web requests under its named sign-ins, each an
+/// identity of its own. Holds each sign-in's secret and applies it, so
+/// neither a tool nor the logbook ever sees one.
 library;
 
 export 'package:is_unix_socket_user_check/is_unix_socket_user_check.dart'
