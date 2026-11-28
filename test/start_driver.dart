@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:is_effects/is_effects.dart';
+import 'package:is_outcome_vocabulary/is_outcome_vocabulary.dart';
+import 'package:is_web_request_vocabulary/is_web_request_vocabulary.dart';
 import 'package:is_sign_in_vocabulary/is_sign_in_vocabulary.dart';
 import 'package:is_web_address_vocabulary/is_web_address_vocabulary.dart';
 import 'package:is_web_request_driver/is_web_request_driver.dart';
@@ -29,7 +30,7 @@ Future<File> freshSocket() async {
 }
 
 /// The caller's side of the socket, as the airlock holds its own: one
-/// request in is_effects' JSON, then one answer line.
+/// request as JSON, then one answer line.
 final class CallerOverSocket implements CarriesOutWebRequests {
   CallerOverSocket(this.socket);
 

@@ -2,7 +2,7 @@
 
 intersyntactic's web request driver: the service behind the airlock's
 `CarriesOutWebRequests` (from
-[is_effects](https://github.com/intersyntactic/effects)), making each
+[is_web_request_vocabulary](https://pub.dev/packages/is_web_request_vocabulary)), making each
 `GrantedRequest` under one of its named sign-ins, each an identity of its own.
 A tool describes the request and names a sign-in, and the airlock decides on
 it. The web request driver holds the secret and is the only piece that ever
@@ -156,7 +156,7 @@ any other user, or one whose user the kernel can't name, is closed
 unanswered, and no web request is made. The caller is a `UserId`, which
 can't be `nobody` or the overflow uid 65534, so the service won't start
 configured for one. A caller writes one request per connection and closes
-its side. The service answers one line and closes. Both are is_effects' own JSON
+its side. The service answers one line and closes. Both are the vocabularies' own JSON
 (`encodeGrantedRequest`, `encodeOutcome` with `encodeWebResponse`), shared
 with the airlock, so neither side keeps a codec of its own. A request
 with no `grantedPathPrefix`, or one that doesn't cover its path, is
@@ -173,7 +173,7 @@ A web request that got a 4xx reply still `ran`. A path that would name
 another site can't be built as a `WebPath`, and the socket refuses one
 arriving as text before anything is made. `WebRequestDriver.start` is
 the service: it binds the socket and serves it until `close`. The airlock
-holds its own client of the socket, written over is_effects' wire codec,
+holds its own client of the socket, written over the same vocabularies,
 so it depends on nothing in this package. Each
 sign-in is its own file, so a sign-in that needs a wall of its own can run
 as a second instance of this service with only that file.

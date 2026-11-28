@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:is_effects/is_effects.dart';
+import 'package:is_outcome_vocabulary/is_outcome_vocabulary.dart';
+import 'package:is_web_request_vocabulary/is_web_request_vocabulary.dart';
 import 'package:is_sign_in_vocabulary/is_sign_in_vocabulary.dart';
 import 'package:is_web_address_vocabulary/is_web_address_vocabulary.dart';
 import 'package:is_web_request_driver/is_web_request_driver.dart';
@@ -178,8 +179,7 @@ void main() {
     expect(sent, isEmpty);
   });
 
-  // The airlock's requests before is_effects 0.14 carried no grant, so a
-  // driver ahead of its airlock refuses them all rather than guess `/`.
+  // A request with no grant is refused rather than read as `/`.
   test('refuses a request carrying no grant', () async {
     await start();
     final answer = await raw(

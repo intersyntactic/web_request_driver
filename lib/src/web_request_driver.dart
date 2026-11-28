@@ -3,7 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:is_effects/is_effects.dart';
+import 'package:is_outcome_vocabulary/is_outcome_vocabulary.dart';
+import 'package:is_web_request_vocabulary/is_web_request_vocabulary.dart';
 import 'package:is_sign_in_vocabulary/is_sign_in_vocabulary.dart';
 import 'package:is_unix_socket_user_check/is_unix_socket_user_check.dart';
 import 'package:is_web_address_vocabulary/is_web_address_vocabulary.dart';
@@ -30,8 +31,8 @@ typedef HttpCall = Future<HttpResult> Function(
 /// is readable by this process and no other: not the airlock, not another
 /// driver.
 ///
-/// A caller connects, writes one [Request] in is_effects' JSON
-/// ([encodeRequest]) and closes its side; the driver answers one line, the
+/// A caller connects, writes one [GrantedRequest] as JSON
+/// ([encodeGrantedRequest]) and closes its side; the driver answers one line, the
 /// `Outcome<WebResponse>` ([encodeOutcome]), and closes. Who is calling is
 /// read from the socket as the kernel reports it, never from the request.
 ///
