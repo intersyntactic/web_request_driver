@@ -26,13 +26,13 @@ sealed class Credential {
   bool reaches(Origin origin, WebPath path) =>
       pathPrefixes[origin]?.any((p) => p.covers(path)) ?? true;
 
-  /// Where a 2xx reply names what the destination made, such as `id`; null
-  /// when it makes nothing worth recording.
+  /// Where a 2xx reply names what the destination made; null when it
+  /// makes nothing worth recording.
   final ReplyField? created;
 
-  /// Where a non-2xx reply names why, in a word, such as `error.code`; null
-  /// when it doesn't. The rest of the body goes only to the driver's log,
-  /// since the logbook keeps what it is given for good.
+  /// Where a non-2xx reply names why, in a word; null when it
+  /// doesn't. The rest of the body goes only to the driver's log, since the
+  /// logbook keeps what it is given for good.
   final ReplyField? refusedBecause;
 
   /// [raw], a sign-in's credential file, or a [FormatException] naming what
@@ -179,8 +179,8 @@ final class ClientCredentials extends Credential {
   ).query;
 }
 
-/// A bearer token issued ahead of time and kept as given, such as a Meta
-/// system user's: nothing is fetched or refreshed.
+/// A bearer token issued ahead of time and kept as given: nothing is fetched
+/// or refreshed.
 final class BearerToken extends Credential {
   BearerToken({
     required this._token,

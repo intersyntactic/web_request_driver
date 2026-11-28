@@ -461,8 +461,8 @@ final class WebRequestDriver {
     };
   }
 
-  /// OAuth 2's error code (RFC 6749, 5.2), such as `invalid_client`: the
-  /// protocol's own, so every token service gives it.
+  /// OAuth 2's error code (RFC 6749, 5.2): the protocol's own, so
+  /// every token service gives it.
   static final _oauthError = ReplyField.parse('error')!;
 
   /// A reason short enough to keep for good; a field that holds more than a

@@ -4,22 +4,19 @@ intersyntactic's web request driver: the service behind the airlock's
 `CarriesOutWebRequests` (from
 [is_effects](https://github.com/intersyntactic/effects)), making each
 `GrantedRequest` under one of its named sign-ins, each an identity of its own.
-A tool describes the request
-and names a sign-in such as `cam-teams`, and the airlock decides on it. The
-web request driver holds the secret and is the only piece that ever sees it.
+A tool describes the request and names a sign-in, and the airlock decides on
+it. The web request driver holds the secret and is the only piece that ever
+sees it.
 
 It knows nothing about any destination. A sign-in's kind is a way of
-proving who you are, such as OAuth 2 client credentials. Everything a
-destination adds sits in that sign-in's file: where its token comes from,
-which sites it's for, and which field of a reply names what was made. So
-Teams, Slack or GitHub is a file, not a change to this package.
+proving who you are. Everything a destination adds sits in that sign-in's
+file: where its token comes from, which sites it's for, and which field of a
+reply names what was made. So a new destination is a new file.
 
 ## What carrying out a web request does
 
 1. **The path stays on its origin.** `path` is appended to `origin`, and the
-   driver refuses anything that would name another site. For example,
-   `@evil.example` after `https://a.example` reads as a login to
-   `evil.example`.
+   driver refuses anything that would name another site.
 2. **A sign-in goes only to its own sites.** The airlock decides by name
    alone, so it can't know that a sign-in next to an origin outside its file
    would hand a token to a stranger. Only the driver can, and it refuses that
@@ -31,18 +28,15 @@ Teams, Slack or GitHub is a file, not a change to this package.
    field the sign-in names, taken from a 2xx JSON reply.
 
 5. **It says why a destination refused.** A failure moves a piece of
-   information of its own: why. A `400`'s body names the problem, and a
-   refused token's names the cause (`AADSTS7000215` is a wrong secret).
-   The logbook keeps what it's given for good, so it gets **a word, not the
-   body**. `WebResponse.refusedBecause` is the one field the sign-in names as its
-   reason, such as `error.code` → `ConversationNotFound`. A refused token's
-   `NothingRan` reason carries OAuth's own `error` code, such as
-   `invalid_client`. The whole body goes only to the driver's log, for
-   whoever runs it. The service logs to stdout, which is the journal on the
-   box, and bodies are clipped to 2,000 characters. A successful reply gets
-   one line: method, site, sign-in, status and created id, never its path
-   (which holds conversation ids) or body. A token service's 200 is never
-   logged, since that body is the token.
+   information of its own: why. The logbook keeps what it's given for good,
+   so it gets **one word**. `WebResponse.refusedBecause` is the one field the
+   sign-in names as its reason. A refused token's `NothingRan` reason
+   carries OAuth's own `error` code. The whole body goes only to the
+   driver's log, for whoever runs it. The service logs to stdout, which is
+   the journal on the box, and bodies are clipped to 2,000 characters. A
+   successful reply gets one line: method, site, sign-in, status and created
+   id, never its path or body. A token service's 200 is never logged, since
+   that body is the token.
 6. **It keeps a body only when asked.** `ProposedRequest.keep` says `none`, `text`
    or `bytes`, and only a 2xx body is kept. A body over `maxBodyBytes`
    (16 MiB unless the program sets it) is never read past the limit, and
@@ -76,8 +70,7 @@ status. Anything else splits on whether the request was sent:
 
 A reason can leave the machine, shown to the person who asked, so
 it names a site but never an address's query or anything the site sent: a
-network failure gives its site and what failed (`Connection closed before
-full header was received`), not the address it failed at.
+network failure gives its site and what failed.
 
 ## Sign-ins
 
@@ -93,10 +86,10 @@ in that directory. This package never reads the environment.
 | `bearer-token` | the bearer token it holds, issued ahead of time and never refreshed | `token` |
 
 Every kind also takes `origins`, the only sites the sign-in is ever shown
-to, and two optional reply fields, each a path of keys such as `error.code`
-or `messages.0.id` (a number indexes a list): `created`, naming what a 2xx
-reply made, and `refusedBecause`, naming why a non-2xx reply refused. Either
-reads text, or a whole number as its digits.
+to, and two optional reply fields, each a dotted path of keys where a number
+indexes a list: `created`, naming what a 2xx reply made, and
+`refusedBecause`, naming why a non-2xx reply refused. Either reads text, or a
+whole number as its digits.
 
 A kind may also take `pathPrefixes`, an object from some of its `origins`
 to the path prefixes it reaches there. A request, and every redirect, to a
@@ -105,36 +98,24 @@ only by `origins`. A prefix ends in `/` and covers only longer paths. This
 bounds a broad token in the one place that holds it, whatever the request
 was granted.
 
-For example, `claude-whatsapp` is a Meta system user's token. It could send
-from every number on the business account, so it is pinned to one:
-
-```json
-{
-  "kind": "bearer-token",
-  "token": "<system user access token>",
-  "origins": ["https://graph.facebook.com"],
-  "pathPrefixes": {"https://graph.facebook.com": ["/v27.0/<phone number id>/"]},
-  "created": "messages.0.id",
-  "refusedBecause": "error.code"
-}
-```
-
-For example, `cam-teams` is a Teams bot. Its `created` is the new activity's
-id, which a card press names later. Its `refusedBecause` is the Bot
-Framework error's code:
+A `client-credentials` file, with every field:
 
 ```json
 {
   "kind": "client-credentials",
-  "tokenUrl": "https://login.microsoftonline.com/<tenant>/oauth2/v2.0/token",
-  "clientId": "<app id>",
-  "secret": "<app secret>",
-  "scope": "https://api.botframework.com/.default",
-  "origins": ["https://smba.trafficmanager.net"],
-  "created": "id",
-  "refusedBecause": "error.code"
+  "tokenUrl": "https://<token service>/…",
+  "clientId": "<client id>",
+  "secret": "<secret>",
+  "scope": "<scope>",
+  "origins": ["https://<site>"],
+  "pathPrefixes": {"https://<site>": ["/<prefix>/"]},
+  "created": "<path of keys>",
+  "refusedBecause": "<path of keys>"
 }
 ```
+
+A `bearer-token` file has `"token"` in place of `tokenUrl`, `clientId`,
+`secret` and `scope`.
 
 ## Running as its own service
 
@@ -160,10 +141,10 @@ its side. The service answers one line and closes. Both are is_effects' own JSON
 (`encodeGrantedRequest`, `encodeOutcome` with `encodeWebResponse`), shared
 with the airlock, so neither side keeps a codec of its own. A request
 with no `grantedPathPrefix`, or one that doesn't cover its path, is
-refused before anything is sent:
+`nothingRan`:
 
 ```
-→ {"origin":"https://…","method":"post","path":"/…","grantedPathPrefix":"/…/","signIn":"cam-teams","headers":{…},"body":"…"}
+→ {"origin":"https://…","method":"post","path":"/…","grantedPathPrefix":"/…/","signIn":"…","headers":{…},"body":"…"}
 ← {"kind":"ran","output":{"status":201,"created":"…","refusedBecause":null}}
 ← {"kind":"nothingRan","why":"…"}
 ← {"kind":"stoppedPartway","why":"…","done":{"status":201,…}}
